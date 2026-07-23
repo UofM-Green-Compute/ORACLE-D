@@ -98,7 +98,7 @@ class DataLogger():
         '''
         self._sum_occupancy += timestep_occupancy # kWh
 
-    def print_summary(self, summary_file, additional_description, total_simulated_time, timestepinsec, total_real_time ):
+    def print_summary(self, summary_file, additional_description, total_simulated_time, timestepinsec, total_real_time, summary_dir=None ):
         self._avg_jobs_completed = self._jobs_finished + (self._jobs_started - self._jobs_finished)/2
         self._avg_energy_per_job = self._total_energy_consumed/self._avg_jobs_completed
         self._avg_carbon_per_job = self._total_carbon_consumed/self._avg_jobs_completed
@@ -110,13 +110,16 @@ class DataLogger():
         self._emit_summary_lines(summary_lines)
         
         if summary_file == True:
-            summary_path = os.path.join(self._run_dir, 'summary.txt')
+            output_dir = summary_dir or self._run_dir
+            os.makedirs(output_dir, exist_ok=True)
+
+            summary_path = os.path.join(output_dir, 'summary.txt')
             with open(summary_path, 'a') as outfile:
                 for line in summary_lines:
                     outfile.write(f'{line}\n')
                 outfile.write(f'\n')
 
-            summary_json_path = os.path.join(self._run_dir, 'summary.json')
+            summary_json_path = os.path.join(output_dir, 'summary.json')
             with open(summary_json_path, 'w') as outfile:
                 json.dump(summary, outfile, indent=4)
                 outfile.write('\n')
@@ -217,6 +220,7 @@ class DataLogger():
             f'Estimated Peaktime CO2e emissions  : {self._peaktime_carbon_consumed/1e3:.3f} kg',
             f'Average CO2e emissions per job     : {self._avg_carbon_per_job:.3f} g',
             f'Peaktime CO2e emissions percentage : {self._peaktime_carbon_consumed/self._total_carbon_consumed*100:.3f} %',
+            ''
         ]
 
 

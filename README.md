@@ -108,6 +108,8 @@ This part controls how much information is written to the logfile in the `logs/`
 Each simulation run creates a folder named like `YYYY-MM-DD_HH-MM-SS_<run-label>` under `logs/runs/`. The folder contains `simulation.log`, `summary.txt`, `summary.json`, `parameters.txt`, and a copy of the run `config.json`.
 The `summary.json` file contains both the simulation parameters and the final summary metrics for machine-readable comparisons between runs.
 
+Multi-site runs also produce a global 'summary.txt' and 'summary.json', but each site keeps its own summary inside the site subfolder.
+
 Verbosity behavior:
 - `low`: only high-level lifecycle messages (for example simulation creation) are logged.
 - `medium`: includes major progress messages (for example loading data and simulation end-condition messages).

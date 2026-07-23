@@ -24,8 +24,10 @@
 import json
 import os
 import sys
+from datetime import datetime
 
 from cluster.ClusterLoader import load_cluster_inventory
+from datalogger.DataLogger import DataLogger
 from simulation.Simulation import Simulation
 from simulation.Time import SimulationTime
 from util import Logging
@@ -97,6 +99,52 @@ class GlobalSimulation():
         return site_run_dir
 
 
+    def _build_global_datalogger(self):
+        global_logger = DataLogger(self._config)
+        global_logger._site_id = "all_sites"
+
+        if not self._site_simulations:
+            return global_logger
+
+        dataloggers = [simulation._datalogger for simulation in self._site_simulations]
+        global_logger._jobs_submitted = sum(datalogger._jobs_submitted for datalogger in dataloggers)
+        global_logger._jobs_started = sum(datalogger._jobs_started for datalogger in dataloggers)
+        global_logger._jobs_finished = sum(datalogger._jobs_finished for datalogger in dataloggers)
+        global_logger._jobs_failed = sum(datalogger._jobs_failed for datalogger in dataloggers)
+        global_logger._jobs_aborted = sum(datalogger._jobs_aborted for datalogger in dataloggers)
+        global_logger._jobs_total_cores_used = sum(datalogger._jobs_total_cores_used for datalogger in dataloggers)
+        global_logger._cumulative_cpu_time = sum(datalogger._cumulative_cpu_time for datalogger in dataloggers)
+        global_logger._cumulative_wallclock_time = sum(datalogger._cumulative_wallclock_time for datalogger in dataloggers)
+        global_logger._total_energy_consumed = sum(datalogger._total_energy_consumed for datalogger in dataloggers)
+        global_logger._peaktime_energy_consumed = sum(datalogger._peaktime_energy_consumed for datalogger in dataloggers)
+        global_logger._total_carbon_consumed = sum(datalogger._total_carbon_consumed for datalogger in dataloggers)
+        global_logger._peaktime_carbon_consumed = sum(datalogger._peaktime_carbon_consumed for datalogger in dataloggers)
+        global_logger._sum_occupancy = sum(datalogger._sum_occupancy for datalogger in dataloggers) / len(dataloggers)
+        global_logger._job_durations = [duration for datalogger in dataloggers for duration in datalogger._job_durations]
+        global_logger._simulation_parameters = {
+            "site_ids": [simulation._site_id for simulation in self._site_simulations],
+            "site_count": len(self._site_simulations),
+            "report": "global_overview",
+        }
+
+        return global_logger
+
+
+    def _write_global_summary(self):
+        global_logger = self._build_global_datalogger()
+        sim_seconds = (self._shared_time.get_current_datetime() - self._shared_time.get_start_datetime()).total_seconds()
+        real_seconds = (datetime.now() - self._shared_time.get_origin_datetime()).total_seconds()
+
+        global_logger.print_summary(
+            True,
+            "all_sites",
+            sim_seconds,
+            self._shared_time.get_timestep(),
+            real_seconds,
+            summary_dir=self._run_dir,
+        )
+
+
     def start(self):
         while True:
             simtottime = self._shared_time.get_current_datetime() - self._shared_time.get_start_datetime()
@@ -105,6 +153,7 @@ class GlobalSimulation():
                 for simulation in self._site_simulations:
                     if not simulation._finished:
                         simulation._finalize('time_limit')
+                self._write_global_summary()
                 print('Global simulation finished. Check logs directory for output')
                 sys.exit(0)
 
@@ -115,6 +164,7 @@ class GlobalSimulation():
                     simulation.step()
 
             if all_finished:
+                self._write_global_summary()
                 print('Global simulation finished. Check logs directory for output')
                 sys.exit(0)
 

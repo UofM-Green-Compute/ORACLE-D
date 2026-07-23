@@ -1,6 +1,6 @@
 {
   "Simulation": {
-    "desired_starttime": "2023-01-16 16:00",
+    "desired_starttime": "2024-01-16 16:00",
     "simulation_length": 587880,
     "timestep": 600
   },
@@ -19,23 +19,22 @@
 
       "carbon_intensity": {
         "folder": "data/carbon_intensity/",
-        "filename": "gb_carbon_intensity_2023.csv",
+        "filename": "de_carbon_Intensity_2024_15min.csv",
         "high_CI_threshold": 400
       },
 
       "jobs": {
         "initial_mix": {
-          "GridPP": 20000
+          "GridPP": 50000
         },
         "regular_incoming_mix": {},
         "incoming_timestep": 3600
       },
 
-      "savings_policy": "None"
+      "savings_policy": "none"
     },
-
     {
-      "site_id": "DESY2",
+      "site_id": "DESY1",
 
       "cluster": {
         "cluster_name": "DEFAULT",
@@ -46,19 +45,19 @@
 
       "carbon_intensity": {
         "folder": "data/carbon_intensity/",
-        "filename": "gb_carbon_intensity_2023.csv",
+        "filename": "de_carbon_Intensity_2024_15min.csv",
         "high_CI_threshold": 400
       },
 
       "jobs": {
         "initial_mix": {
-          "GridPP": 20000
+          "GridPP": 50000
         },
         "regular_incoming_mix": {},
         "incoming_timestep": 3600
       },
 
-      "savings_policy": "cd1721"
+      "savings_policy": "none"
     }
 
   ],
@@ -67,6 +66,6 @@
     "verbosity": "high",
     "debug": false,
     "log_dir": "logs/runs",
-    "run_label": "Two_Site_Test_GridPP_ATLAS"
+    "run_label": "50000GridPPJobs-DE"
   }
 }
