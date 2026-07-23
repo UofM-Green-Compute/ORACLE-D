@@ -18,11 +18,13 @@ logger = Logging.get_logger()
 
 class VOJobFactory():
     
-    def __init__(self, tag, RAM_per_core = 1, cores_req = None):
+    def __init__(self, tag, RAM_per_core = 1, cores_req = None, origin_site = None):
         self._tag = tag
         self._job_number = 0
         self._memory_required_GB_per_core = RAM_per_core
         self._cores_requested = cores_req
+        self._origin_site = origin_site
+
 
 
     def __get_duration(self):
@@ -44,13 +46,13 @@ class VOJobFactory():
         logger.debug('Creating job')
         self._job_number += 1
         name = f'{self._tag}{self._job_number}'
-        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores())
+        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores(), self._origin_site)
             
 
 class GridPPJobFactory(VOJobFactory):
     # Test VO to fix all variables associated with jobs.
-    def __init__(self, tag, RAM_per_core = 2, cores_req = None):
-        super().__init__(tag, RAM_per_core, cores_req)
+    def __init__(self, tag, RAM_per_core = 2, cores_req = None, origin_site = None):
+        super().__init__(tag, RAM_per_core, cores_req, origin_site)
         
 
     def __get_duration(self):
@@ -68,14 +70,14 @@ class GridPPJobFactory(VOJobFactory):
         logger.debug('Creating GridPP production job')
         self._job_number += 1
         name = f'{self._tag}{self._job_number}'
-        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores())
+        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores(), self._origin_site)
 
 
 
 
 class ATLASJobFactory(VOJobFactory):
-    def __init__(self, tag, RAM_per_core = 2, cores_req = None):
-        super().__init__(tag, RAM_per_core, cores_req)
+    def __init__(self, tag, RAM_per_core = 2, cores_req = None, origin_site = None):
+        super().__init__(tag, RAM_per_core, cores_req, origin_site)
         
 
     def __get_duration(self):
@@ -102,13 +104,13 @@ class ATLASJobFactory(VOJobFactory):
         logger.debug('Creating ATLAS production job')
         self._job_number += 1
         name = f'{self._tag}{self._job_number}'
-        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores())
+        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores(), self._origin_site)
 
 
 
 class LHCbJobFactory(VOJobFactory):
-    def __init__(self, tag, RAM_per_core = 4, cores_req = None):
-        super().__init__(tag, RAM_per_core, cores_req)
+    def __init__(self, tag, RAM_per_core = 4, cores_req = None, origin_site = None):
+        super().__init__(tag, RAM_per_core, cores_req, origin_site)
 
 
     def __get_duration(self):
@@ -137,4 +139,4 @@ class LHCbJobFactory(VOJobFactory):
         logger.debug('Creating LHCb production job')
         self._job_number += 1
         name = f'{self._tag}{self._job_number}'
-        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores())
+        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores(), self._origin_site)

@@ -11,23 +11,24 @@ from jobs.VOJobFactory import VOJobFactory, GridPPJobFactory, ATLASJobFactory, L
 
 class JobScheduler():
 
-    def __init__(self, simulation_time, cluster_to_submit_jobs_to, inital_job_mix={'ATLAS':10,'LHCb':5}, regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]]):
+    def __init__(self, simulation_time, cluster_to_submit_jobs_to, inital_job_mix={'ATLAS':10,'LHCb':5}, regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]], site_id=None):
         self._simulation_time = simulation_time
         self._cluster = cluster_to_submit_jobs_to
+        self._site_id = site_id
         
         # Load in the job mixed
         self._inital_job_mix = inital_job_mix
         self._regular_incoming_jobs = regular_incoming_jobs
 
         # Create the job factories
-        self._basic_job     = VOJobFactory('VO-Basic-')
-        self._gridpp_job    = GridPPJobFactory('GridPP-')
-        self._atlas_prod    = ATLASJobFactory('ATLAS-Prod-')
-        self._lhcb_prod     = LHCbJobFactory('LHCb-Prod-')
+        self._basic_job     = VOJobFactory('VO-Basic-', origin_site=self._site_id)
+        self._gridpp_job    = GridPPJobFactory('GridPP-', origin_site=self._site_id)
+        self._atlas_prod    = ATLASJobFactory('ATLAS-Prod-', origin_site=self._site_id)
+        self._lhcb_prod     = LHCbJobFactory('LHCb-Prod-', origin_site=self._site_id)
 
-        self._gridpp_hourly = GridPPJobFactory('GridPP-Hourly')
-        self._atlas_hourly  = ATLASJobFactory('ATLAS-Hourly-')
-        self._lhcb_hourly   = LHCbJobFactory('LHCb-Hourly-')
+        self._gridpp_hourly = GridPPJobFactory('GridPP-Hourly', origin_site=self._site_id)
+        self._atlas_hourly  = ATLASJobFactory('ATLAS-Hourly-', origin_site=self._site_id)
+        self._lhcb_hourly   = LHCbJobFactory('LHCb-Hourly-', origin_site=self._site_id)
 
         # Seed the cluster with initial jobs
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}

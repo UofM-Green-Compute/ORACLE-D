@@ -1,9 +1,9 @@
 {
     "Simulation" : {
         "desired_starttime" : "2024-01-16 16:00",
-        "simulation_length" : 604800,
+        "simulation_length" : 587880,
         "timestep" : 600,
-        "savings_policy" : "none"
+        "savings_policy" : "cd1721"
     },
 
     "carbon_intensity" : {
@@ -21,17 +21,15 @@
 
     "jobs" : {
         "initial_mix" : {
-            "ATLAS" : 40000,
-            "LHCb" : 10000
-        },
-        "regular_incoming_mix" : {},
+            "ATLAS" : 30000},
+        "regular_incoming_mix" : {"ATLAS" : 200},
         "incoming_timestep" : 3600
     },
 
     "output" : {
-        "verbosity" : "medium",
+        "verbosity" : "high",
         "debug" : false,
         "log_dir" : "logs/runs",
-        "run_label" : "RF20PMTest-50000LHCJobs-Base"
+        "run_label" : "RF20PMTest-30000ATLAS-200ATLAS-cd1721"
     }
 }

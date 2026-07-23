@@ -24,10 +24,14 @@ logger = Logging.get_logger()
 
 class Simulation():
 
-    def __init__(self, config, inventory):
+    def __init__(self, config, inventory, simulation_time=None, site_id=None):
         
+        self._site_id                         = site_id or config.get("site_id", "site")
         self.desiredStartTime             = config["Simulation"]["desired_starttime"] # STEVE '2018-01-01 00:30' : Starts at the simulation at a set time can be set to any time you wish in the format '2024-01-12 15:00'
-        self._simulation_time             = SimulationTime(config, self.desiredStartTime) #If you want this to be set to the current time, set desiredStartTime to None
+        if simulation_time is None:
+            self._simulation_time = SimulationTime(config, self.desiredStartTime) #If you want this to be set to the current time, set desiredStartTime to None
+        else:
+            self._simulation_time = simulation_time
         self._simulation_length           = config["Simulation"]["simulation_length"] # Desired maximum length of the simulation in seconds. (For one year 365*24*3600)
         self._simulation_time._timestep_seconds = config["Simulation"]["timestep"] # Simulation time step in seconds. #Steve was using 200
         # Finds the half-hour time segment to which the start of the simulation belongs and the one after the end time.
@@ -35,6 +39,8 @@ class Simulation():
         self._simulation_maxfinal_segment = self._simulation_time.find_hh_segment(self._simulation_time._time + timedelta(seconds=self._simulation_length), 'next')
 
         self._verbosity = config["output"]["verbosity"]
+        self._finished = False
+        self._finish_reason = None
 
         print('Setting up simulation.')
         print('Start date: ' + self._simulation_time._start_time.strftime("%d/%m/%y"))
@@ -120,7 +126,7 @@ class Simulation():
         else:
             jobs_refill = [[config["jobs"]["regular_incoming_mix"], config["jobs"]["incoming_timestep"]]]
 
-        self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, config["jobs"]["initial_mix"] , jobs_refill)
+        self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, config["jobs"]["initial_mix"] , jobs_refill, site_id=self._site_id)
         # self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, {'GridPP':100000}, [[{'GridPP':250}, 3600*10]])
         self._jobdescript  = "RF20PMTest-50000LHCJobs-Base" # Add here what kind of jobs you are running.
 
@@ -145,6 +151,56 @@ class Simulation():
             logger.info('Created simulation with parameters:\n%s', simulation_parameters_text)
             self._write_simulation_parameters(simulation_parameters_text)
         print(f'Simulation Started. Good Luck')
+
+
+    def _get_finish_context(self):
+        simtottime = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime()
+        realtottime = datetime.now() - self._simulation_time.get_origin_datetime()
+        return simtottime.total_seconds(), realtottime.total_seconds()
+
+
+    def _finalize(self, reason):
+        if self._finished:
+            return
+
+        self._finished = True
+        self._finish_reason = reason
+        sim_seconds, real_seconds = self._get_finish_context()
+        self._datalogger.print_summary(True, self._jobdescript, sim_seconds, self._simulation_time.get_timestep(), real_seconds)
+
+        if reason == 'no_jobs':
+            if self._verbosity in ["medium", "high"]:
+                logger.info(f'No more jobs!')
+                logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
+        elif reason == 'time_limit':
+            if self._verbosity in ["medium", "high"]:
+                logger.info(f'You have been running for a week! Time to stop')
+                logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
+
+
+    def step(self):
+        if self._finished:
+            return True
+
+        simtottime  = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime() # Simulated Time
+
+        # Update the state of the scheduler
+        self._jobScheduler.update()
+
+        # Update the state of the cluster
+        self._cluster.update() 
+        
+        # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
+        if self._cluster._mission_accomplished == True: 
+            self._finalize('no_jobs')
+            return True
+        
+        # Second end condition: When the configured simulation length has elapsed.
+        if simtottime.total_seconds() >= self._simulation_length:
+            self._finalize('time_limit')
+            return True
+
+        return False
 
 
     def _write_simulation_parameters(self, simulation_parameters):
@@ -243,35 +299,9 @@ class Simulation():
                 worker_node.clock_down()
 
         while True:
-            simtottime  = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime() # Simulated Time
-            
-            # Update the state of the scheduler
-            self._jobScheduler.update()
-
-            # Update the state of the cluster
-            self._cluster.update() 
-            
-            # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
-            if self._cluster._mission_accomplished == True: 
-                realtottime = datetime.now() - self._simulation_time.get_origin_datetime() # Real Time
-                self._datalogger.print_summary(True, self._jobdescript, simtottime.total_seconds(), self._simulation_time.get_timestep(), realtottime.total_seconds())
-                
-                if self._verbosity in ["medium", "high"]:
-                    logger.info(f'No more jobs!')
-                    logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
+            if self.step():
                 print(f'Simulation Finished. Check logs directory for output')
                 sys.exit(0)
-            
-            # Second end condition: When two weeks in simulation time has passed.
-            if simtottime.total_seconds() >= self._simulation_length:
-                realtottime = datetime.now() - self._simulation_time.get_origin_datetime() # Real Time
-                self._datalogger.print_summary(True, self._jobdescript, simtottime.total_seconds(), self._simulation_time.get_timestep(), realtottime.total_seconds())
-                
-                if self._verbosity in ["medium", "high"]:
-                    logger.info(f'You have been running for a week! Time to stop')
-                    logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
-                print(f'Simulation Finished. Check logs directory for output')
-                sys.exit(0)    
 
             # Move forward in time
             self._simulation_time.advance() 
