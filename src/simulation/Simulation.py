@@ -152,6 +152,8 @@ class Simulation():
             self._write_simulation_parameters(simulation_parameters_text)
         print(f'Simulation Started. Good Luck')
 
+        self._apply_initial_savings_policy()
+
 
     def _get_finish_context(self):
         simtottime = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime()
@@ -288,16 +290,18 @@ class Simulation():
         return ', '.join(f'{vo}: {jobs}' for vo, jobs in job_mix.items())
 
 
-    def start(self):
-        #Permantly run nodes clocked down.
+    def _apply_initial_savings_policy(self):
+        # Apply one-time policies before the first simulation step.
         if self._cluster._energy_saving_try == 'cd':
             for worker_node in self._cluster._worker_nodes:
-                worker_node.clock_down()    
-        if self._cluster._energy_saving_try == 'cdcd':  
+                worker_node.clock_down()
+        if self._cluster._energy_saving_try == 'cdcd':
             for worker_node in self._cluster._worker_nodes:
                 worker_node.clock_down()
                 worker_node.clock_down()
 
+
+    def start(self):
         while True:
             if self.step():
                 print(f'Simulation Finished. Check logs directory for output')
