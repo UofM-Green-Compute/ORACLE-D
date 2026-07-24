@@ -34,7 +34,7 @@
       "savings_policy": "none"
     },
     {
-      "site_id": "DESY1",
+      "site_id": "DESY2",
 
       "cluster": {
         "cluster_name": "DEFAULT",
@@ -57,15 +57,15 @@
         "incoming_timestep": 3600
       },
 
-      "savings_policy": "none"
+      "savings_policy": "cd"
     }
 
   ],
 
   "output": {
-    "verbosity": "high",
+    "verbosity": "low",
     "debug": false,
     "log_dir": "logs/runs",
-    "run_label": "50000GridPPJobs-DE"
+    "run_label": "50k/50kGridPP_none_cd1721-DE"
   }
 }

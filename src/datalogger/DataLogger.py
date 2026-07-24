@@ -104,8 +104,7 @@ class DataLogger():
         self._avg_carbon_per_job = self._total_carbon_consumed/self._avg_jobs_completed
         self._avg_occupancy      = self._sum_occupancy/(total_simulated_time/timestepinsec)
         summary = self._create_summary(total_simulated_time, total_real_time)
-        job_length_stats = self._create_job_length_distribution()
-        summary_lines = self._format_summary_lines(total_simulated_time, total_real_time, job_length_stats)
+        summary_lines = self._format_summary_lines(total_simulated_time, total_real_time) #, job_length_stats
 
         self._emit_summary_lines(summary_lines)
         
@@ -140,7 +139,6 @@ class DataLogger():
                 "average_completed": self._avg_jobs_completed,
                 "total_cores_used": self._jobs_total_cores_used,
             },
-            "job_lengths": self._create_job_length_distribution(),
             "cpu": {
                 "total_core_seconds": self._cumulative_cpu_time,
                 "total_core_hours": self._cumulative_cpu_time/3600,
@@ -166,33 +164,8 @@ class DataLogger():
         }
 
 
-    def _create_job_length_distribution(self):
-        if not self._job_durations:
-            return {
-                "count": 0,
-                "statistics": None,
-                "histogram": [],
-            }
 
-        durations = np.asarray(self._job_durations, dtype=float)
-        stats = {
-            "min_seconds": float(np.min(durations)),
-            "max_seconds": float(np.max(durations)),
-            "mean_seconds": float(np.mean(durations)),
-            "median_seconds": float(np.median(durations)),
-            "stdev_seconds": float(np.std(durations, ddof=1)) if durations.size > 1 else 0.0
-           #"p25_seconds": float(np.percentile(durations, 25)),
-            #"p75_seconds": float(np.percentile(durations, 75)),
-            #"p90_seconds": float(np.percentile(durations, 90)),
-        }
-
-        return {
-            "count": int(durations.size),
-            "statistics": stats}
-
-
-    def _format_summary_lines(self, total_simulated_time, total_real_time, job_length_stats):
-        job_length_text = self._format_job_length_distribution(job_length_stats)
+    def _format_summary_lines(self, total_simulated_time, total_real_time): 
         return [
             f'Data centre: {self._site_id}',
             f'========',
@@ -213,9 +186,6 @@ class DataLogger():
             f'Peaktime (5-9pm) energy consumption: {self._peaktime_energy_consumed:3.2f} kWh',
             f'Average energy consumption per job : {self._avg_energy_per_job*1e3:3.2f} Wh',
             f'',
-            f'Job length distribution',
-            *job_length_text.splitlines(),
-            f'',
             f'Estimated CO2e emissions           : {self._total_carbon_consumed/1e3:.3f} kg',
             f'Estimated Peaktime CO2e emissions  : {self._peaktime_carbon_consumed/1e3:.3f} kg',
             f'Average CO2e emissions per job     : {self._avg_carbon_per_job:.3f} g',
@@ -228,30 +198,3 @@ class DataLogger():
         for line in summary_lines:
             print(line)
             logger.info(f'[{self._site_id}] {line}')
-
-
-    def _format_job_length_distribution(self, job_length_stats):
-        if job_length_stats["count"] == 0:
-            return '  no finished jobs recorded'
-
-        stats = job_length_stats["statistics"]
-        lines = [
-            f'  jobs counted        : {job_length_stats["count"]}',
-            f'  min / median / max  : {stats["min_seconds"] / 60:4.1f} / {stats["median_seconds"] / 60:4.1f} / {stats["max_seconds"] / 60:4.1f} minutes',
-            f'  mean / stdev        : {stats["mean_seconds"] / 60:4.1f} / {stats["stdev_seconds"] / 60:4.1f} minutes'
-            # f'  p25 / p75 / p90     : {stats["p25_seconds"] / 60:4.1f} / {stats["p75_seconds"] / 60:4.1f} / {stats["p90_seconds"] / 60:4.1f} minutes'
-            # f'  histogram',
-        ]
-
-        #max_count = max(bin_data["count"] for bin_data in histogram)
-        #bar_width = 30
-        #for bin_data in histogram:
-        #    lower_minutes = bin_data["lower_seconds"] / 60
-        #    upper_minutes = bin_data["upper_seconds"] / 60
-        #    bar_length = int(round((bin_data["count"] / max_count) * bar_width)) if max_count else 0
-        #    bar = '#' * bar_length
-        #    lines.append(
-        #        f'    {lower_minutes:6.1f}-{upper_minutes:6.1f} min | {bar:<30} ({bin_data["count"]})'
-        #    )
-
-        return '\n'.join(lines)

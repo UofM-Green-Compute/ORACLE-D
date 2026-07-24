@@ -42,9 +42,9 @@ class Simulation():
         self._finished = False
         self._finish_reason = None
 
-        print('Setting up simulation.')
-        print('Start date: ' + self._simulation_time._start_time.strftime("%d/%m/%y"))
-        print('Timestep: ' + str(self._simulation_time.get_timestep()) + ' seconds')
+        #print('Setting up simulation.')
+        #print('Start date: ' + self._simulation_time._start_time.strftime("%d/%m/%y"))
+        #print('Timestep: ' + str(self._simulation_time.get_timestep()) + ' seconds')
                
         # Importing average data about the Carbon Intensity of the whole UK grid for the maxumum duration of the simulation.
         # Carbon Intensity data is in gCO2/kWh.
@@ -98,8 +98,8 @@ class Simulation():
                                 self._CIntendata,
                                 config["Simulation"]["savings_policy"],
                                 self.CIThresholdValue) # Starting DESY
-
-
+        print('')
+        print('Site ID: ' + self._site_id)
         print('Cluster: ', end='')
         for node, cores in self._cluster._worker_node_inventory.items():
             n = node(self._simulation_time)

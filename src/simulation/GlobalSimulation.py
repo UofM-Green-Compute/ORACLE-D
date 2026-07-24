@@ -120,13 +120,6 @@ class GlobalSimulation():
         global_logger._total_carbon_consumed = sum(datalogger._total_carbon_consumed for datalogger in dataloggers)
         global_logger._peaktime_carbon_consumed = sum(datalogger._peaktime_carbon_consumed for datalogger in dataloggers)
         global_logger._sum_occupancy = sum(datalogger._sum_occupancy for datalogger in dataloggers) / len(dataloggers)
-        global_logger._job_durations = [duration for datalogger in dataloggers for duration in datalogger._job_durations]
-        global_logger._simulation_parameters = {
-            "site_ids": [simulation._site_id for simulation in self._site_simulations],
-            "site_count": len(self._site_simulations),
-            "report": "global_overview",
-        }
-
         return global_logger
 
 
@@ -143,7 +136,8 @@ class GlobalSimulation():
             real_seconds,
             summary_dir=self._run_dir,
         )
-
+        print('Global simulation stats:')
+        print(f"Number of sites: {len(self._site_simulations)}, Site IDs:", ', '.join(simulation._site_id for simulation in self._site_simulations))
 
     def start(self):
         while True:
