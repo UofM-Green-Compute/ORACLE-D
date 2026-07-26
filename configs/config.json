@@ -1,0 +1,19 @@
+{
+    "Simulation" : {
+        "desired_starttime" : "2024-01-16 16:00",
+        "simulation_length" : 587880,
+        "timestep" : 600,
+        "savings_policy" : "cd1721"
+    },
+
+    "sites" : [
+        "DESY1.json",
+        "DESY2.json"
+    ],
+    "output" : {
+        "verbosity" : "high",
+        "debug" : false,
+        "log_dir" : "logs/runs",
+        "run_label" : "RF20PMTest-30000ATLAS-200ATLAS-cd1721"
+    }
+}

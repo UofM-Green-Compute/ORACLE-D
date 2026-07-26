@@ -7,14 +7,12 @@
 #    files in the main directory 
 # ===========================================================================
 
-import json
+
 import sys
 import os
 from datetime import datetime, timedelta
 
-from attr import dataclass
 from cluster.Cluster import Cluster
-from cluster.ClusterLoader import load_cluster_inventory
 from datalogger.DataLogger import DataLogger
 from jobs.JobScheduler import JobScheduler
 from simulation.Time import SimulationTime
@@ -23,87 +21,40 @@ from util import Logging
 
 logger = Logging.get_logger()
 
-@dataclass
-class ClusterUnit:
-    cluster_id: str
-    cluster: Cluster
-    job_scheduler: JobScheduler
-    data_logger: DataLogger
-    run_dir: str
-    ci_threshold: float
-    ci_segment_start: str
-    ci_segment_end: str
-    finished: bool = False
-    finish_reason: str = None
-
 
 class Simulation():
 
-    def __init__(self, config, cluster_configs, simulation_time=None):
-        self._config = config
-        self.desiredStartTime = config["Simulation"]["desired_starttime"] # STEVE '2018-01-01 00:30' : Starts at the simulation at a set time can be set to any time you wish in the format '2024-01-12 15:00'
+    def __init__(self, config, inventory, simulation_time=None, site_id=None):
+        
+        self._site_id                         = site_id or config.get("site_id", "site")
+        self.desiredStartTime             = config["Simulation"]["desired_starttime"] # STEVE '2018-01-01 00:30' : Starts at the simulation at a set time can be set to any time you wish in the format '2024-01-12 15:00'
         if simulation_time is None:
             self._simulation_time = SimulationTime(config, self.desiredStartTime) #If you want this to be set to the current time, set desiredStartTime to None
         else:
             self._simulation_time = simulation_time
-        self._simulation_length = config["Simulation"]["simulation_length"] # Desired maximum length of the simulation in seconds. (For one year 365*24*3600)
+        self._simulation_length           = config["Simulation"]["simulation_length"] # Desired maximum length of the simulation in seconds. (For one year 365*24*3600)
         self._simulation_time._timestep_seconds = config["Simulation"]["timestep"] # Simulation time step in seconds. #Steve was using 200
         # Finds the half-hour time segment to which the start of the simulation belongs and the one after the end time.
         self._simulation_starting_segment = self._simulation_time.find_hh_segment(self._simulation_time._time)
         self._simulation_maxfinal_segment = self._simulation_time.find_hh_segment(self._simulation_time._time + timedelta(seconds=self._simulation_length), 'next')
 
         self._verbosity = config["output"]["verbosity"]
-        self._run_dir = config["output"]["run_dir"]
         self._finished = False
-        self._jobdescript = config["output"]["run_label"]
         self._finish_reason = None
 
         #print('Setting up simulation.')
         #print('Start date: ' + self._simulation_time._start_time.strftime("%d/%m/%y"))
         #print('Timestep: ' + str(self._simulation_time.get_timestep()) + ' seconds')
                
-        self._cluster_units = []
-        for index, cluster_config in enumerate(cluster_configs, start=1):
-            unit = self._build_cluster_unit(cluster_config, index)
-            self._cluster_units.append(unit)
-
-        if self._verbosity in ["low", "medium", "high"]:
-            for unit, cluster_config in zip(self._cluster_units, cluster_configs):
-                simulation_parameters = self._get_simulation_parameters(unit, cluster_config)
-                unit.data_logger.set_simulation_parameters(simulation_parameters)
-                simulation_parameters_text = self._format_simulation_parameters(simulation_parameters)
-                logger.info('Created cluster %s with parameters:\n%s', unit.cluster_id, simulation_parameters_text)
-                self._write_simulation_parameters(unit,simulation_parameters_text)
-        print(f'Simulation Started. Good Luck')
-
-        for unit in self._cluster_units:
-            self._apply_initial_savings_policy(unit)
-
-
-    def _build_cluster_unit(self, cluster_config, index):
-        cluster_id = cluster_config.get("cluster_id", cluster_config.get("site_id", f"cluster_{index}"))
-        cluster_run_dir = os.path.join(self._run_dir, cluster_id)
-        os.makedirs(cluster_run_dir, exist_ok=True )
-        cluster_config = dict(cluster_config)  # Make a copy to avoid mutating the original
-        cluster_config["output"] = dict(cluster_config.get("output", {}))  # Ensure output is a dict
-        cluster_config["output"]["run_dir"] = cluster_run_dir
-        cluster_config["output"]["verbosity"] = self._verbosity
-
-        with open(os.path.join(cluster_run_dir, 'cluster_config.json'), 'w') as outfile:
-            json.dump(cluster_config, outfile, indent=4)
-            outfile.write('\n')
-        savings_policy = cluster_config.get("savings_policy", self._config["Simulation"].get("savings_policy", "none"))
-
-
         # Importing average data about the Carbon Intensity of the whole UK grid for the maxumum duration of the simulation.
         # Carbon Intensity data is in gCO2/kWh.
         if self._verbosity in ["medium", "high"]:
-            logger.info('Loading in Carbon Intensity Data for cluster %s', cluster_id)
-        datapath = cluster_config["carbon_intensity"]["folder"]
-        datafile = cluster_config["carbon_intensity"]["filename"]
+            logger.info('Loading in Carbon Intensity Data')
+        datapath = config["carbon_intensity"]["folder"]
+        datafile = config["carbon_intensity"]["filename"]
         #Convert start and end segment datetimes to format found in datafile. 
-        datastart_str = datetime.strftime(self._simulation_starting_segment, '%Y-%m-%dT%H:%M:%S')
-        datafinal_str = datetime.strftime(self._simulation_maxfinal_segment, '%Y-%m-%dT%H:%M:%S')
+        self.datastart_str = datetime.strftime(self._simulation_starting_segment, '%Y-%m-%dT%H:%M:%S')
+        self.datafinal_str = datetime.strftime(self._simulation_maxfinal_segment, '%Y-%m-%dT%H:%M:%S')
         
         linesofimport = []
         datarequired  = False
@@ -111,24 +62,23 @@ class Simulation():
             for line in file.read().splitlines():
                 line = line.split(',')
 
-                if line[0] == datastart_str: # Ignores all lines before the one you want.
+                if line[0] == self.datastart_str: # Ignores all lines before the one you want.
                     datarequired = True
-                elif line[0] == datafinal_str: # Exit file after you have reached the end time value.
+                elif line[0] == self.datafinal_str: # Exit file after you have reached the end time value.
                     datarequired = False
                 
                 if datarequired == True: #Import data when you have found that date you want.
                     if line[1] == '': # If there is data missing
-                        print("You are missing forecast CI data for cluster " + cluster_id + " for the time segment: " + line[0])
+                        print("You are missing forecast CI data for the time segment: " + line[0])
                         sys.exit
                     if line[2] == '': # If there is data missing
-                        print("You are missing actual CI data for cluster " + cluster_id + " for the time segment: " + line[0])
+                        print("You are missing actual CI data for the time segment: " + line[0])
                         sys.exit
                     linesofimport.append(line)    
                     
-        CIntendata = linesofimport
-        CIThresholdValue = cluster_config["carbon_intensity"]["high_CI_threshold"] #  200gCO2e/kWh - This roughly corresponds to what is labelled 'high' in the UK. For Germany I'll put this at 400
-
-
+        self._CIntendata = linesofimport
+        
+        self.CIThresholdValue = config["carbon_intensity"]["high_CI_threshold"] #  200gCO2e/kWh - This roughly corresponds to what is labelled 'high' in the UK. For Germany I'll put this at 400
 
         # Create the cluster {WorkerNode[unstantiated WN of type WorkerNode]:amount[integer]}
         # Types of nodes you can currently use are {WorkerNode_h16, WorkerNode_h17, WorkerNode_d20, WorkerNode_d21, WorkerNode_d22, WorkerNode_a23},
@@ -142,80 +92,65 @@ class Simulation():
         # self._cluster = Cluster(self._simulation_time, {WorkerNode_d20:40, WorkerNode_d21:32, WorkerNode_d22:36, WorkerNode_d24:17}, self._CIntendata, 'none') # Future 1
         # self._cluster = Cluster(self._simulation_time, {WorkerNode_d20:40, WorkerNode_d21:32, WorkerNode_d22:36, WorkerNode_a24:17}, self._CIntendata, 'none') # Future 2
         # DESY
-
-        inventory = load_cluster_inventory(
-            cluster_config["cluster"]["inventory_csv"],
-            cluster_config["cluster"]["frequency_csv"],
-            cluster_name=cluster_config["cluster"]["cluster_name"],
-            strict=cluster_config["cluster"]["strict"],
-        )
-
-        cluster = Cluster(cluster_config,
+        self._cluster = Cluster(config,
                                 self._simulation_time,
                                 inventory,
-                                CIntendata,
-                                cluster_config["savings_policy"],
-                                CIThresholdValue) # Starting DESY
+                                self._CIntendata,
+                                config["Simulation"]["savings_policy"],
+                                self.CIThresholdValue) # Starting DESY
         print('')
-        print('Site ID: ' + cluster_id)
+        print('Site ID: ' + self._site_id)
         print('Cluster: ', end='')
-        for node, cores in cluster._worker_node_inventory.items():
+        for node, cores in self._cluster._worker_node_inventory.items():
             n = node(self._simulation_time)
             print(n.hostname + ': ' + str(cores) + ' ', end='')
         print()
-        print('Energy saving try: ' + cluster._energy_saving_try)
-        print('CIThresholdValue: ' + str(CIThresholdValue))
+        print('Energy saving try: ' + self._cluster._energy_saving_try)
+        print('CIThresholdValue: ' + str(self.CIThresholdValue))
         
         # Class to record statistics
-        datalogger = DataLogger(cluster_config)
-        cluster.set_datalogger_handlers(datalogger.job_submit, 
-                                              datalogger.job_start, 
-                                              datalogger.job_finish,
-                                              datalogger.energy_and_carbon_consumed, 
-                                              datalogger.peaktime_energy_and_carbon_consumed,
-                                              datalogger.sum_occupancy )
+        self._datalogger = DataLogger(config)
+        self._cluster.set_datalogger_handlers(self._datalogger.job_submit, 
+                                              self._datalogger.job_start, 
+                                              self._datalogger.job_finish,
+                                              self._datalogger.energy_and_carbon_consumed, 
+                                              self._datalogger.peaktime_energy_and_carbon_consumed,
+                                              self._datalogger.sum_occupancy )
 
         # Create a job scheduler to initially seed the cluster with jobs and provide jobs on a regular notice. Needs to know about this cluster
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}
         # Format for regular jobs is a list  of lists of a dictionary of [[{'VO1':jobs per X seconds, 'VO2':jobs per X seconds, [...]}, X], [....] ]
         # self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, {'GridPP':10} , None)
-        if cluster_config["jobs"]["regular_incoming_mix"] == {}:
+        if config["jobs"]["regular_incoming_mix"] == {}:
             jobs_refill = None
         else:
-            jobs_refill = [[cluster_config["jobs"]["regular_incoming_mix"], cluster_config["jobs"]["incoming_timestep"]]]
+            jobs_refill = [[config["jobs"]["regular_incoming_mix"], config["jobs"]["incoming_timestep"]]]
 
-        job_scheduler = JobScheduler(self._simulation_time, cluster, cluster_config["jobs"]["initial_mix"] , jobs_refill, site_id=cluster_id)
+        self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, config["jobs"]["initial_mix"] , jobs_refill, site_id=self._site_id)
         # self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, {'GridPP':100000}, [[{'GridPP':250}, 3600*10]])
         self._jobdescript  = "RF20PMTest-50000LHCJobs-Base" # Add here what kind of jobs you are running.
 
 
         print ('Jobs: ', end='')
-        for vo, jobs in job_scheduler._initial_job_mix.items():
+        for vo, jobs in self._jobScheduler._initial_job_mix.items():
             print(vo + ': ' + str(jobs), end='')
-        if job_scheduler._regular_incoming_jobs:
+        if self._jobScheduler._regular_incoming_jobs:
             print(' then ', end='')
-            for l1 in job_scheduler._regular_incoming_jobs:
+            for l1 in self._jobScheduler._regular_incoming_jobs:
                 vos = l1[0]
                 secs = l1[1]
                 for vo, jobs in vos.items():
                     print(vo + ': ' + str(jobs), end=' ')
                 print(' per ' + str(secs/3600) +  ' hours', end='')
         print ()
-
-        return ClusterUnit(
-            cluster_id=cluster_id,
-            cluster=cluster,
-            job_scheduler=job_scheduler,
-            data_logger=datalogger,
-            run_dir=cluster_run_dir,
-            ci_threshold=CIThresholdValue,
-            ci_segment_start=datastart_str,
-            ci_segment_end=datafinal_str,
-        )
-
-
         
-
+        if self._verbosity in ["low", "medium", "high"]:
+            simulation_parameters = self._get_simulation_parameters(datapath, datafile)
+            self._datalogger.set_simulation_parameters(simulation_parameters)
+            simulation_parameters_text = self._format_simulation_parameters(simulation_parameters)
+            logger.info('Created simulation with parameters:\n%s', simulation_parameters_text)
+            self._write_simulation_parameters(simulation_parameters_text)
+        print(f'Simulation Started. Good Luck')
 
         self._apply_initial_savings_policy()
 
@@ -233,12 +168,11 @@ class Simulation():
         self._finished = True
         self._finish_reason = reason
         sim_seconds, real_seconds = self._get_finish_context()
-        for unit in self._cluster_units:
-            unit.data_logger.print_summary(True, unit.cluster_id, self._jobdescript, sim_seconds, self._simulation_time.get_timestep(), real_seconds)
+        self._datalogger.print_summary(True, self._jobdescript, sim_seconds, self._simulation_time.get_timestep(), real_seconds)
 
         if reason == 'no_jobs':
             if self._verbosity in ["medium", "high"]:
-                logger.info(f'No more jobs across all clusters!')
+                logger.info(f'No more jobs!')
                 logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
         elif reason == 'time_limit':
             if self._verbosity in ["medium", "high"]:
@@ -246,108 +180,76 @@ class Simulation():
                 logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
 
 
-    def _build_global_datalogger(self):
-        global_logger = DataLogger(self._config)
-        global_logger._site_id = 'all_clusters'
-
-        if not self._cluster_units:
-            return global_logger
-
-        dataloggers = [unit._datalogger for unit in self._cluster_units]
-        global_logger._jobs_submitted = sum(datalogger._jobs_submitted for datalogger in dataloggers)
-        global_logger._jobs_started = sum(datalogger._jobs_started for datalogger in dataloggers)
-        global_logger._jobs_finished = sum(datalogger._jobs_finished for datalogger in dataloggers)
-        global_logger._jobs_failed = sum(datalogger._jobs_failed for datalogger in dataloggers)
-        global_logger._jobs_aborted = sum(datalogger._jobs_aborted for datalogger in dataloggers)
-        global_logger._jobs_total_cores_used = sum(datalogger._jobs_total_cores_used for datalogger in dataloggers)
-        global_logger._cumulative_cpu_time = sum(datalogger._cumulative_cpu_time for datalogger in dataloggers)
-        global_logger._cumulative_wallclock_time = sum(datalogger._cumulative_wallclock_time for datalogger in dataloggers)
-        global_logger._total_energy_consumed = sum(datalogger._total_energy_consumed for datalogger in dataloggers)
-        global_logger._peaktime_energy_consumed = sum(datalogger._peaktime_energy_consumed for datalogger in dataloggers)
-        global_logger._total_carbon_consumed = sum(datalogger._total_carbon_consumed for datalogger in dataloggers)
-        global_logger._peaktime_carbon_consumed = sum(datalogger._peaktime_carbon_consumed for datalogger in dataloggers)
-        global_logger._sum_occupancy = sum(datalogger._sum_occupancy for datalogger in dataloggers) / len(dataloggers)
-        return global_logger
-
-        
     def step(self):
         if self._finished:
             return True
 
         simtottime  = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime() # Simulated Time
-        for unit in self._cluster_units:
-            if not unit.finished:
-                continue
+
         # Update the state of the scheduler
-            unit.job_scheduler.update()
+        self._jobScheduler.update()
+
         # Update the state of the cluster
-            unit.cluster.update() 
+        self._cluster.update() 
         
         # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
-            if unit.cluster._mission_accomplished == True:
-                unit.finished = True
-                unit.finish_reason = 'no_jobs'
+        if self._cluster._mission_accomplished == True: 
+            self._finalize('no_jobs')
+            return True
         
         # Second end condition: When the configured simulation length has elapsed.
         if simtottime.total_seconds() >= self._simulation_length:
-            for unit in self._cluster_units:
-                if not unit.finished:
-                    unit.finished = True
-                    unit.finish_reason = 'time_limit'
-
-        if all(unit.finished for unit in self._cluster_units):
-            self._finalize('all_clusters_finished')
+            self._finalize('time_limit')
             return True
 
         return False
 
 
-    def _write_simulation_parameters(self, unit, simulation_parameters):
-        run_dir = unit.data_logger._run_dir
+    def _write_simulation_parameters(self, simulation_parameters):
+        run_dir = self._datalogger._run_dir
         if run_dir:
             with open(os.path.join(run_dir, 'parameters.txt'), 'w') as outfile:
                 outfile.write(simulation_parameters)
                 outfile.write('\n')
 
 
-    def _get_simulation_parameters(self, unit, cluster_config):
+    def _get_simulation_parameters(self, carbon_data_path, carbon_data_file):
         cluster_inventory = {}
-        for node, quantity in unit.cluster._worker_node_inventory.items():
+        for node, quantity in self._cluster._worker_node_inventory.items():
             worker_node = node(self._simulation_time)
             cluster_inventory[worker_node.hostname] = quantity
 
         regular_jobs = []
-        if unit.job_scheduler._regular_incoming_jobs:
+        if self._jobScheduler._regular_incoming_jobs:
             regular_jobs = [
                 {
                     "job_mix": job_mix,
                     "incoming_timestep_seconds": secs,
                 }
-                for job_mix, secs in unit.job_scheduler._regular_incoming_jobs
+                for job_mix, secs in self._jobScheduler._regular_incoming_jobs
             ]
 
         return {
-            "site_id": unit.cluster_id,
             "start_time": str(self._simulation_time.get_start_datetime()),
             "max_end_time": str(self._simulation_time.get_start_datetime() + timedelta(seconds=self._simulation_length)),
             "simulation_length_seconds": self._simulation_length,
             "timestep_seconds": self._simulation_time.get_timestep(),
-            "savings_policy": unit.cluster._energy_saving_try,
+            "savings_policy": self._cluster._energy_saving_try,
             "carbon_intensity": {
-                "file": f'{cluster_config["carbon_intensity"]["folder"]}{cluster_config["carbon_intensity"]["filename"]}',
+                "file": f'{carbon_data_path}{carbon_data_file}',
                 "segments": {
-                    "start": unit.ci_segment_start,
-                    "end": unit.ci_segment_end,
+                    "start": self.datastart_str,
+                    "end": self.datafinal_str,
                 },
-                "high_CI_threshold": unit.ci_threshold,
+                "high_CI_threshold": self.CIThresholdValue,
             },
             "cluster": {
-                "worker_nodes": unit.cluster.get_number_of_nodes(),
-                "worker_cores": unit.cluster.get_number_of_cores(),
+                "worker_nodes": self._cluster.get_number_of_nodes(),
+                "worker_cores": self._cluster.get_number_of_cores(),
                 "worker_node_inventory": cluster_inventory,
             },
             "jobs": {
-                "initial": unit.job_scheduler._initial_job_mix,
+                "initial": self._jobScheduler._initial_job_mix,
                 "regular_incoming": regular_jobs,
             },
         }
@@ -366,7 +268,6 @@ class Simulation():
             )
 
         return '\n'.join([
-            f'Site ID: {simulation_parameters["site_id"]}',
             f'  start_time: {simulation_parameters["start_time"]}',
             f'  max_end_time: {simulation_parameters["max_end_time"]}',
             f'  simulation_length_seconds: {simulation_parameters["simulation_length_seconds"]}',
@@ -389,13 +290,13 @@ class Simulation():
         return ', '.join(f'{vo}: {jobs}' for vo, jobs in job_mix.items())
 
 
-    def _apply_initial_savings_policy(self, unit):
+    def _apply_initial_savings_policy(self):
         # Apply one-time policies before the first simulation step.
-        if unit.cluster._energy_saving_try == 'cd':
-            for worker_node in unit.cluster._worker_nodes:
+        if self._cluster._energy_saving_try == 'cd':
+            for worker_node in self._cluster._worker_nodes:
                 worker_node.clock_down()
-        if unit.cluster._energy_saving_try == 'cdcd':
-            for worker_node in unit.cluster._worker_nodes:
+        if self._cluster._energy_saving_try == 'cdcd':
+            for worker_node in self._cluster._worker_nodes:
                 worker_node.clock_down()
                 worker_node.clock_down()
 

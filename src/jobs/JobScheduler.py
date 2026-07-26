@@ -11,13 +11,13 @@ from jobs.VOJobFactory import VOJobFactory, GridPPJobFactory, ATLASJobFactory, L
 
 class JobScheduler():
 
-    def __init__(self, simulation_time, cluster_to_submit_jobs_to, inital_job_mix={'ATLAS':10,'LHCb':5}, regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]], site_id=None):
+    def __init__(self, simulation_time, cluster_to_submit_jobs_to, initial_job_mix={'ATLAS':10,'LHCb':5}, regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]], site_id=None):
         self._simulation_time = simulation_time
         self._cluster = cluster_to_submit_jobs_to
         self._site_id = site_id
         
         # Load in the job mixed
-        self._inital_job_mix = inital_job_mix
+        self._initial_job_mix = initial_job_mix
         self._regular_incoming_jobs = regular_incoming_jobs
 
         # Create the job factories
@@ -32,8 +32,8 @@ class JobScheduler():
 
         # Seed the cluster with initial jobs
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}
-        if self._inital_job_mix != None:
-            for VO, amount in self._inital_job_mix.items():
+        if self._initial_job_mix != None:
+            for VO, amount in self._initial_job_mix.items():
                 if VO == 'ATLAS':
                     for _ in range(amount):
                         self._cluster.submit_job(self._atlas_prod.create_job())
