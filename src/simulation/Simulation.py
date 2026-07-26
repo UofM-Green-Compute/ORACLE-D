@@ -88,6 +88,7 @@ class Simulation():
         cluster_config["output"] = dict(cluster_config.get("output", {}))  # Ensure output is a dict
         cluster_config["output"]["run_dir"] = cluster_run_dir
         cluster_config["output"]["verbosity"] = self._verbosity
+        cluster_config["site_id"] = cluster_id
 
         with open(os.path.join(cluster_run_dir, 'cluster_config.json'), 'w') as outfile:
             json.dump(cluster_config, outfile, indent=4)
@@ -234,8 +235,11 @@ class Simulation():
         self._finish_reason = reason
         sim_seconds, real_seconds = self._get_finish_context()
         for unit in self._cluster_units:
-            unit.data_logger.print_summary(True, unit.cluster_id, self._jobdescript, sim_seconds, self._simulation_time.get_timestep(), real_seconds)
-
+            unit.data_logger.print_summary(True, self._jobdescript, sim_seconds, self._simulation_time.get_timestep(), real_seconds)
+        global_logger = self._build_global_datalogger()
+        global_logger.print_summary(True, self._jobdescript, sim_seconds,
+                                     self._simulation_time.get_timestep(), real_seconds,
+                                     summary_dir=self._run_dir)
         if reason == 'no_jobs':
             if self._verbosity in ["medium", "high"]:
                 logger.info(f'No more jobs across all clusters!')
@@ -253,7 +257,7 @@ class Simulation():
         if not self._cluster_units:
             return global_logger
 
-        dataloggers = [unit._datalogger for unit in self._cluster_units]
+        dataloggers = [unit.data_logger for unit in self._cluster_units]
         global_logger._jobs_submitted = sum(datalogger._jobs_submitted for datalogger in dataloggers)
         global_logger._jobs_started = sum(datalogger._jobs_started for datalogger in dataloggers)
         global_logger._jobs_finished = sum(datalogger._jobs_finished for datalogger in dataloggers)
@@ -276,7 +280,7 @@ class Simulation():
 
         simtottime  = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime() # Simulated Time
         for unit in self._cluster_units:
-            if not unit.finished:
+            if unit.finished:
                 continue
         # Update the state of the scheduler
             unit.job_scheduler.update()

@@ -100,9 +100,9 @@ class DataLogger():
 
     def print_summary(self, summary_file, additional_description, total_simulated_time, timestepinsec, total_real_time, summary_dir=None ):
         self._avg_jobs_completed = self._jobs_finished + (self._jobs_started - self._jobs_finished)/2
-        self._avg_energy_per_job = self._total_energy_consumed/self._avg_jobs_completed
-        self._avg_carbon_per_job = self._total_carbon_consumed/self._avg_jobs_completed
-        self._avg_occupancy      = self._sum_occupancy/(total_simulated_time/timestepinsec)
+        self._avg_energy_per_job = self._safe_divide(self._total_energy_consumed, self._avg_jobs_completed)
+        self._avg_carbon_per_job = self._safe_divide(self._total_carbon_consumed, self._avg_jobs_completed)
+        self._avg_occupancy      = self._safe_divide(self._sum_occupancy, (total_simulated_time/timestepinsec))
         summary = self._create_summary(total_simulated_time, total_real_time)
         summary_lines = self._format_summary_lines(total_simulated_time, total_real_time) #, job_length_stats
 
@@ -142,7 +142,7 @@ class DataLogger():
             "cpu": {
                 "total_core_seconds": self._cumulative_cpu_time,
                 "total_core_hours": self._cumulative_cpu_time/3600,
-                "average_core_hours": (self._cumulative_cpu_time/3600) / self._jobs_total_cores_used,
+                "average_core_hours": self._safe_divide((self._cumulative_cpu_time/3600), self._jobs_total_cores_used),
             },
             "occupancy": {
                 "average_fraction": self._avg_occupancy,
@@ -159,7 +159,7 @@ class DataLogger():
                 "peaktime_g": self._peaktime_carbon_consumed,
                 "peaktime_kg": self._peaktime_carbon_consumed/1e3,
                 "average_per_job_g": self._avg_carbon_per_job,
-                "peaktime_percent": self._peaktime_carbon_consumed/self._total_carbon_consumed*100,
+                "peaktime_percent": self._safe_divide(self._peaktime_carbon_consumed, self._total_carbon_consumed) * 100,
             },
         }
 
@@ -179,7 +179,7 @@ class DataLogger():
             f'Jobs Finished                      : {self._jobs_finished}',
             f'',
             f'Total CPU duration                 : {self._cumulative_cpu_time/3600:6.1f} hours',
-            f'Average CPU duration               : {(self._cumulative_cpu_time/3600) / self._jobs_total_cores_used:4.2f} hours',
+            f'Average CPU duration               : {self._safe_divide((self._cumulative_cpu_time/3600), self._jobs_total_cores_used):4.2f} hours',
             f'Average Occupancy of all clusters  : {(self._avg_occupancy*100):3.1f} %',
             f'',
             f'Total energy consumed by compute   : {self._total_energy_consumed:3.2f} kWh',
@@ -189,7 +189,7 @@ class DataLogger():
             f'Estimated CO2e emissions           : {self._total_carbon_consumed/1e3:.3f} kg',
             f'Estimated Peaktime CO2e emissions  : {self._peaktime_carbon_consumed/1e3:.3f} kg',
             f'Average CO2e emissions per job     : {self._avg_carbon_per_job:.3f} g',
-            f'Peaktime CO2e emissions percentage : {self._peaktime_carbon_consumed/self._total_carbon_consumed*100:.3f} %',
+            f'Peaktime CO2e emissions percentage : {self._safe_divide(self._peaktime_carbon_consumed, self._total_carbon_consumed)*100:.3f} %',
             ''
         ]
 
@@ -198,3 +198,9 @@ class DataLogger():
         for line in summary_lines:
             print(line)
             logger.info(f'[{self._site_id}] {line}')
+
+
+    def _safe_divide(self, numerator, denominator):
+        if denominator == 0:
+            return 0.0
+        return numerator / denominator
