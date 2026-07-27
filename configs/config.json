@@ -8,12 +8,13 @@
 
     "sites" : [
         "DESY1.json",
-        "DESY2.json"
+        "DESY2.json",
+        "DESY3.json"
     ],
     "output" : {
-        "verbosity" : "medium",
+        "verbosity" : "low",
         "debug" : false,
         "log_dir" : "logs/runs",
-        "run_label" : "RF20PMTest-30000ATLAS-200ATLAS-cd1721"
+        "run_label" : "testing_global_carbon_savings"
     }
 }

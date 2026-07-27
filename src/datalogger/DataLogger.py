@@ -98,7 +98,7 @@ class DataLogger():
         '''
         self._sum_occupancy += timestep_occupancy # kWh
 
-    def print_summary(self, summary_file, additional_description, total_simulated_time, timestepinsec, total_real_time, summary_dir=None ):
+    def print_summary(self, summary_file, additional_description, total_simulated_time, timestepinsec, total_real_time, summary_dir=None, print_console=True):
         self._avg_jobs_completed = self._jobs_finished + (self._jobs_started - self._jobs_finished)/2
         self._avg_energy_per_job = self._safe_divide(self._total_energy_consumed, self._avg_jobs_completed)
         self._avg_carbon_per_job = self._safe_divide(self._total_carbon_consumed, self._avg_jobs_completed)
@@ -106,7 +106,7 @@ class DataLogger():
         summary = self._create_summary(total_simulated_time, total_real_time)
         summary_lines = self._format_summary_lines(total_simulated_time, total_real_time) #, job_length_stats
 
-        self._emit_summary_lines(summary_lines)
+        self._emit_summary_lines(summary_lines, print_console=print_console)
         
         if summary_file == True:
             output_dir = summary_dir or self._run_dir
@@ -194,9 +194,10 @@ class DataLogger():
         ]
 
 
-    def _emit_summary_lines(self, summary_lines):
+    def _emit_summary_lines(self, summary_lines, print_console=True):
         for line in summary_lines:
-            print(line)
+            if print_console:
+                print(line)
             logger.info(f'[{self._site_id}] {line}')
 
 

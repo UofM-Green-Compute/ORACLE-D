@@ -223,19 +223,21 @@ class Simulation():
         return simtottime.total_seconds(), realtottime.total_seconds()
 
 
-    def _finalize(self, reason):
+    def _finalise(self, reason):
         if self._finished:
             return
 
         self._finished = True
         self._finish_reason = reason
         sim_seconds, real_seconds = self._get_finish_context()
+        self._final_sim_seconds = sim_seconds
         for unit in self._cluster_units:
-            unit.data_logger.print_summary(True, self._jobdescript, unit.finish_sim_seconds, self._simulation_time.get_timestep(), real_seconds)
-        global_logger = self._build_global_datalogger()
-        global_logger.print_summary(True, self._jobdescript, sim_seconds,
+            unit.data_logger.print_summary(True, self._jobdescript, unit.finish_sim_seconds, self._simulation_time.get_timestep(), 
+                                           real_seconds, print_console = False)
+        self._global_logger = self._build_global_datalogger()
+        self._global_logger.print_summary(True, self._jobdescript, sim_seconds,
                                      self._simulation_time.get_timestep(), real_seconds,
-                                     summary_dir=self._run_dir)
+                                     summary_dir=self._run_dir, print_console = True)
         if reason == 'no_jobs':
             if self._verbosity in ["medium", "high"]:
                 logger.info(f'No more jobs across all clusters!')
@@ -298,7 +300,7 @@ class Simulation():
                     unit.finish_sim_seconds = simtottime.total_seconds()
 
         if all(unit.finished for unit in self._cluster_units):
-            self._finalize('all_clusters_finished')
+            self._finalise('all_clusters_finished')
             return True
 
         return False
@@ -406,8 +408,7 @@ class Simulation():
         while True:
             if self.step():
                 print(f'Simulation Finished. Check logs directory for output')
-                sys.exit(0)
-
+                return
             # Move forward in time
             self._simulation_time.advance() 
             

@@ -161,7 +161,7 @@ class Simulation():
         return simtottime.total_seconds(), realtottime.total_seconds()
 
 
-    def _finalize(self, reason):
+    def _finalise(self, reason):
         if self._finished:
             return
 
@@ -194,12 +194,12 @@ class Simulation():
         
         # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
         if self._cluster._mission_accomplished == True: 
-            self._finalize('no_jobs')
+            self._finalise('no_jobs')
             return True
         
         # Second end condition: When the configured simulation length has elapsed.
         if simtottime.total_seconds() >= self._simulation_length:
-            self._finalize('time_limit')
+            self._finalise('time_limit')
             return True
 
         return False
