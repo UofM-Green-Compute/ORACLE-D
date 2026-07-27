@@ -35,6 +35,7 @@ class ClusterUnit:
     ci_segment_end: str
     finished: bool = False
     finish_reason: str = None
+    finish_sim_seconds: float = None
 
 
 class Simulation():
@@ -213,11 +214,6 @@ class Simulation():
             ci_segment_start=datastart_str,
             ci_segment_end=datafinal_str,
         )
-
-
-        
-
-
         self._apply_initial_savings_policy()
 
 
@@ -235,7 +231,7 @@ class Simulation():
         self._finish_reason = reason
         sim_seconds, real_seconds = self._get_finish_context()
         for unit in self._cluster_units:
-            unit.data_logger.print_summary(True, self._jobdescript, sim_seconds, self._simulation_time.get_timestep(), real_seconds)
+            unit.data_logger.print_summary(True, self._jobdescript, unit.finish_sim_seconds, self._simulation_time.get_timestep(), real_seconds)
         global_logger = self._build_global_datalogger()
         global_logger.print_summary(True, self._jobdescript, sim_seconds,
                                      self._simulation_time.get_timestep(), real_seconds,
@@ -291,6 +287,7 @@ class Simulation():
             if unit.cluster._mission_accomplished == True:
                 unit.finished = True
                 unit.finish_reason = 'no_jobs'
+                unit.finish_sim_seconds = simtottime.total_seconds()
         
         # Second end condition: When the configured simulation length has elapsed.
         if simtottime.total_seconds() >= self._simulation_length:
@@ -298,6 +295,7 @@ class Simulation():
                 if not unit.finished:
                     unit.finished = True
                     unit.finish_reason = 'time_limit'
+                    unit.finish_sim_seconds = simtottime.total_seconds()
 
         if all(unit.finished for unit in self._cluster_units):
             self._finalize('all_clusters_finished')

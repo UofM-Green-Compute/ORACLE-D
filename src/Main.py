@@ -23,7 +23,6 @@
 
 #NEED TO EDIT MAIN TO ACCOUNT FOR NEW CONFIG STRUCTURE
 from simulation.Simulation import Simulation
-from simulation.GlobalSimulation import GlobalSimulation
 from cluster.ClusterLoader import load_cluster_inventory
 from util import Logging
 import json
