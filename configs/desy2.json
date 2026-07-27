@@ -1,0 +1,26 @@
+{
+  "site_id": "DESY2",
+
+  "cluster": {
+    "cluster_name": "DEFAULT",
+    "inventory_csv": "data/cluster/default-machinegroups_inventory.csv",
+    "frequency_csv": "data/cluster/default-frequency_dependence.csv",
+    "strict": false
+  },
+
+  "carbon_intensity": {
+    "folder": "data/carbon_intensity/",
+    "filename": "de_carbon_Intensity_2024_15min.csv",
+    "high_CI_threshold": 400
+  },
+
+  "jobs": {
+    "initial_mix": {
+      "GridPP": 50000
+    },
+    "regular_incoming_mix": {},
+    "incoming_timestep": 3600
+  },
+
+  "savings_policy": "cd"
+}

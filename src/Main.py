@@ -21,6 +21,7 @@
 # The main repository houses LICENSE and NOTICE files for your infromation 
 # ========================================================================
 
+#NEED TO EDIT MAIN TO ACCOUNT FOR NEW CONFIG STRUCTURE
 from simulation.Simulation import Simulation
 from cluster.ClusterLoader import load_cluster_inventory
 from util import Logging
@@ -33,16 +34,8 @@ logger = Logging.get_logger()
 
 if __name__ == '__main__':
     project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    with open(project_dir + '/config.json') as f:
+    with open(project_dir + '/configs/config.json') as f:
         config = json.load(f)
-
-
-    inventory = load_cluster_inventory(
-            config["cluster"]["inventory_csv"],
-            config["cluster"]["frequency_csv"],
-            cluster_name = config["cluster"]["cluster_name"],
-            strict = config["cluster"]["strict"],
-        )
 
     output_cfg = config.setdefault("output", {})
     verbosity_raw = output_cfg.get("verbosity")
@@ -54,7 +47,7 @@ if __name__ == '__main__':
         logging_level = logging.INFO
 
     run_dir = Logging.create_run_directory(config)
-    with open(os.path.join(run_dir, 'config.json'), 'w') as outfile:
+    with open(os.path.join(run_dir, 'multi_site_config.json'), 'w') as outfile:
         json.dump(config, outfile, indent=4)
         outfile.write('\n')
 
@@ -64,8 +57,26 @@ if __name__ == '__main__':
     if verbosity_raw != config["output"]["verbosity"]:
         logger.warning(f"Invalid verbosity value '{verbosity_raw}', defaulting to 'high'")
 
-    sim = Simulation(config, inventory)
 
+    config_dir = os.path.dirname(os.path.abspath(os.path.join(project_dir, 'configs/config.json')))
+    resolved_sites = []
+    for site_path in config["sites"]:
+        with open(os.path.join(config_dir, site_path)) as site_file:
+            resolved_sites.append(json.load(site_file))
+    config["sites"] = resolved_sites
+ 
+    # Reshape each site into the per-cluster config dict Simulation expects.
+    cluster_configs = []
+    for site in config["sites"]:
+        cluster_configs.append({
+            "cluster_id": site["site_id"],
+            "cluster": site["cluster"],
+            "carbon_intensity": site["carbon_intensity"],
+            "jobs": site["jobs"],
+            "savings_policy": site.get("savings_policy", config["Simulation"].get("savings_policy", "none")),
+        })
+ 
+    sim = Simulation(config, cluster_configs)
     sim.start()
     #sim2 = Simulation('eveningclock') # Clock down the node at 5pm and up at 9pm
     #sim2.start()

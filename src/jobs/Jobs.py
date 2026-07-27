@@ -11,13 +11,15 @@ import datetime
 
 class Job():
 
-    def __init__(self, name, duration, memory_req = 1, cores_req = 1):
+    def __init__(self, name, duration, memory_req = 1, cores_req = 1, origin_site = None):
         self.name = name
         self._duration = duration
         self.memory_req = memory_req # In GB-per-core.
         self.cores_req = cores_req
         self._start_time = None
         self._end_time = None
+        self.origin_site = origin_site
+
 
 
     def __str__(self):
