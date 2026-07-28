@@ -17,6 +17,7 @@ from cluster.Cluster import Cluster
 from cluster.ClusterLoader import load_cluster_inventory
 from datalogger.DataLogger import DataLogger
 from jobs.JobScheduler import JobScheduler
+from simulation.GlobalJobQueue import GlobalJobQueue
 from simulation.Time import SimulationTime
 from util import Logging
 
@@ -27,12 +28,12 @@ logger = Logging.get_logger()
 class ClusterUnit:
     cluster_id: str
     cluster: Cluster
-    job_scheduler: JobScheduler
     data_logger: DataLogger
     run_dir: str
     ci_threshold: float
     ci_segment_start: str
     ci_segment_end: str
+    job_scheduler: JobScheduler = None
     finished: bool = False
     finish_reason: str = None
     finish_sim_seconds: float = None
@@ -58,6 +59,8 @@ class Simulation():
         self._finished = False
         self._jobdescript = config["output"]["run_label"]
         self._finish_reason = None
+        self._global_logger = None
+        self._final_sim_seconds = None
 
         #print('Setting up simulation.')
         #print('Start date: ' + self._simulation_time._start_time.strftime("%d/%m/%y"))
@@ -67,6 +70,14 @@ class Simulation():
         for index, cluster_config in enumerate(cluster_configs, start=1):
             unit = self._build_cluster_unit(cluster_config, index)
             self._cluster_units.append(unit)
+
+        self._global_scheduler = GlobalJobQueue()
+        self._global_scheduler.set_clusters({unit.cluster_id: unit.cluster for unit in self._cluster_units})
+
+        for unit, cluster_config in zip(self._cluster_units, cluster_configs):
+            self._attach_job_scheduler(unit, cluster_config)
+
+        self._global_scheduler.update()
 
         if self._verbosity in ["low", "medium", "high"]:
             for unit, cluster_config in zip(self._cluster_units, cluster_configs):
@@ -181,42 +192,38 @@ class Simulation():
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}
         # Format for regular jobs is a list  of lists of a dictionary of [[{'VO1':jobs per X seconds, 'VO2':jobs per X seconds, [...]}, X], [....] ]
         # self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, {'GridPP':10} , None)
-        if cluster_config["jobs"]["regular_incoming_mix"] == {}:
-            jobs_refill = None
-        else:
-            jobs_refill = [[cluster_config["jobs"]["regular_incoming_mix"], cluster_config["jobs"]["incoming_timestep"]]]
-
-        job_scheduler = JobScheduler(self._simulation_time, cluster, cluster_config["jobs"]["initial_mix"] , jobs_refill, site_id=cluster_id)
-        # self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, {'GridPP':100000}, [[{'GridPP':250}, 3600*10]])
-        self._jobdescript  = "RF20PMTest-50000LHCJobs-Base" # Add here what kind of jobs you are running.
-
-
-        print ('Jobs: ', end='')
-        for vo, jobs in job_scheduler._initial_job_mix.items():
-            print(vo + ': ' + str(jobs), end='')
-        if job_scheduler._regular_incoming_jobs:
-            print(' then ', end='')
-            for l1 in job_scheduler._regular_incoming_jobs:
-                vos = l1[0]
-                secs = l1[1]
-                for vo, jobs in vos.items():
-                    print(vo + ': ' + str(jobs), end=' ')
-                print(' per ' + str(secs/3600) +  ' hours', end='')
-        print ()
+      
 
         return ClusterUnit(
             cluster_id=cluster_id,
             cluster=cluster,
-            job_scheduler=job_scheduler,
             data_logger=datalogger,
             run_dir=cluster_run_dir,
             ci_threshold=CIThresholdValue,
             ci_segment_start=datastart_str,
             ci_segment_end=datafinal_str,
         )
-        self._apply_initial_savings_policy()
 
-
+    def _attach_job_scheduler(self, unit, cluster_config):
+        if cluster_config["jobs"]["regular_incoming_mix"] == {}:
+            jobs_refill = None
+        else:
+            jobs_refill = [[cluster_config["jobs"]["regular_incoming_mix"], cluster_config["jobs"]["incoming_timestep"]]]
+        job_scheduler = JobScheduler(self._simulation_time, unit.cluster, cluster_config["jobs"]["initial_mix"],jobs_refill,site_id=unit.cluster_id, job_router=self._global_scheduler)
+        jobs_summary = ''
+        for vo, jobs in job_scheduler._initial_job_mix.items():
+            jobs_summary += f'{vo}: {jobs} '
+        if job_scheduler._regular_incoming_jobs:
+            jobs_summary += 'then '
+            for l1 in job_scheduler._regular_incoming_jobs:
+                vos = l1[0]
+                secs = l1[1]
+                for vo, jobs in vos.items():
+                    jobs_summary += f'{vo}: {jobs} '
+                jobs_summary += f'per {secs/3600} hours '
+        logger.info('Jobs: %s', jobs_summary)
+        unit.job_scheduler = job_scheduler    
+                
     def _get_finish_context(self):
         simtottime = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime()
         realtottime = datetime.now() - self._simulation_time.get_origin_datetime()
@@ -238,6 +245,7 @@ class Simulation():
         self._global_logger.print_summary(True, self._jobdescript, sim_seconds,
                                      self._simulation_time.get_timestep(), real_seconds,
                                      summary_dir=self._run_dir, print_console = True)
+        self._global_scheduler.write_summary(self._run_dir)
         if reason == 'no_jobs':
             if self._verbosity in ["medium", "high"]:
                 logger.info(f'No more jobs across all clusters!')
@@ -283,9 +291,13 @@ class Simulation():
         # Update the state of the scheduler
             unit.job_scheduler.update()
         # Update the state of the cluster
-            unit.cluster.update() 
-        
-        # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
+        self._global_scheduler.update()
+
+        for unit in self._cluster_units:
+            if unit.finished:
+                continue
+            unit.cluster.update()
+            # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
             if unit.cluster._mission_accomplished == True:
                 unit.finished = True
                 unit.finish_reason = 'no_jobs'

@@ -8,8 +8,7 @@
 
     "sites" : [
         "DESY1.json",
-        "DESY2.json",
-        "DESY3.json"
+        "DESY2.json"
     ],
     "output" : {
         "verbosity" : "low",

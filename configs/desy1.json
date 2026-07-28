@@ -16,7 +16,7 @@
 
   "jobs": {
     "initial_mix": {
-      "GridPP": 50000
+      "ATLAS":10000
     },
     "regular_incoming_mix": {},
     "incoming_timestep": 3600

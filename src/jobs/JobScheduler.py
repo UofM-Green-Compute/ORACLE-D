@@ -11,11 +11,13 @@ from jobs.VOJobFactory import VOJobFactory, GridPPJobFactory, ATLASJobFactory, L
 
 class JobScheduler():
 
-    def __init__(self, simulation_time, cluster_to_submit_jobs_to, initial_job_mix={'ATLAS':10,'LHCb':5}, regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]], site_id=None):
+    def __init__(self, simulation_time, cluster_to_submit_job_to, initial_job_mix={'ATLAS':10,'LHCb':5},
+                  regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]], site_id=None, job_router=None):
         self._simulation_time = simulation_time
-        self._cluster = cluster_to_submit_jobs_to
+        self._cluster = cluster_to_submit_job_to
         self._site_id = site_id
-        
+
+        self._submit_target = job_router if job_router is not None else self._cluster
         # Load in the job mixed
         self._initial_job_mix = initial_job_mix
         self._regular_incoming_jobs = regular_incoming_jobs
@@ -36,16 +38,16 @@ class JobScheduler():
             for VO, amount in self._initial_job_mix.items():
                 if VO == 'ATLAS':
                     for _ in range(amount):
-                        self._cluster.submit_job(self._atlas_prod.create_job())
+                        self._submit_target.submit_job(self._atlas_prod.create_job())
                 elif VO == 'LHCb':
                     for _ in range(amount):
-                        self._cluster.submit_job(self._lhcb_prod.create_job())
+                        self._submit_target.submit_job(self._lhcb_prod.create_job())
                 elif VO == 'GridPP':
                     for _ in range(amount):
-                        self._cluster.submit_job(self._gridpp_job.create_job())                
+                        self._submit_target.submit_job(self._gridpp_job.create_job())                
                 else:
                     for _ in range(amount):
-                        self._cluster.submit_job(self._basic_job.create_job())        
+                        self._submit_target.submit_job(self._basic_job.create_job())        
 
     def update(self):
         # Jobs to be submitted while the simulation is ongoing
@@ -61,20 +63,20 @@ class JobScheduler():
                 timediff = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime()
                 cyclespassed = timediff.total_seconds()/cycle
                 
-                if not self._cluster.has_running_jobs() and not self._cluster.has_queued_jobs():
+                if not self._submit_target.has_running_jobs() and not self._cluster.has_queued_jobs():
                     continue
 
                 if cyclespassed != 0 and cyclespassed % 1 == 0:
                     for VO, amount in dict_VO_jobs_per_cycle.items():
                         if VO == 'ATLAS':
                             for _ in range(amount):
-                                self._cluster.submit_job(self._atlas_hourly.create_job())
+                                self._submit_target.submit_job(self._atlas_hourly.create_job())
                         elif VO == 'LHCb':
                             for _ in range(amount):
-                                self._cluster.submit_job(self._lhcb_hourly.create_job())
+                                self._submit_target.submit_job(self._lhcb_hourly.create_job())
                         elif VO == 'GridPP':
                             for _ in range(amount):
-                                self._cluster.submit_job(self._gridpp_hourly.create_job())                                 
+                                self._submit_target.submit_job(self._gridpp_hourly.create_job())                                 
                         else:
                             for _ in range(amount):
-                                self._cluster.submit_job(self._basic_job.create_job())    
+                                self._submit_target.submit_job(self._basic_job.create_job())    

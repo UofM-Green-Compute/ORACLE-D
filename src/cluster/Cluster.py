@@ -51,6 +51,7 @@ class Cluster():
         self._in_clkdown = False # Flags to make decisions based on the status of the cluster.
         self._anticipate_clkdown = False
         self._anticipate_clockup = False
+        self.site_id = config.get("site_id", config.get("cluster_id", None))
   
         self._mission_accomplished = False # State of completion for the simulation. 
         self._worker_node_inventory = worker_node_inventory
