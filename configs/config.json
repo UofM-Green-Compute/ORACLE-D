@@ -8,12 +8,13 @@
 
     "sites" : [
         "DESY1.json",
-        "DESY2.json"
+        "DESY2.json",
+        "DESY3.json"
     ],
     "output" : {
         "verbosity" : "low",
         "debug" : false,
         "log_dir" : "logs/runs",
-        "run_label" : "testing_global_carbon_savings"
+        "run_label" : "testing_global_queue_incoming_jobs"
     }
 }

@@ -16,7 +16,7 @@
 
   "jobs": {
     "initial_mix": {
-      "ATLAS":10000
+      "ATLAS":1000
     },
     "regular_incoming_mix": {},
     "incoming_timestep": 3600

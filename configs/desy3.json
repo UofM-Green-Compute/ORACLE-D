@@ -22,5 +22,5 @@
     "incoming_timestep": 3600
   },
 
-  "savings_policy": "none"
+  "savings_policy": "cd"
 }

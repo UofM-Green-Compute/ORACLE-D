@@ -63,7 +63,7 @@ class JobScheduler():
                 timediff = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime()
                 cyclespassed = timediff.total_seconds()/cycle
                 
-                if not self._submit_target.has_running_jobs() and not self._cluster.has_queued_jobs():
+                if not self._cluster.has_running_jobs() and not self._cluster.has_queued_jobs():
                     continue
 
                 if cyclespassed != 0 and cyclespassed % 1 == 0:

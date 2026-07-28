@@ -130,6 +130,10 @@ if __name__ == '__main__':
     baseline_duration_s = baseline_sim._final_sim_seconds
     time_difference_s = actual_duration_s - baseline_duration_s
 
+    actual_cpu_time = sim._global_logger._cumulative_cpu_time
+    baseline_cpu_time = baseline_sim._global_logger._cumulative_cpu_time
+    cpu_time_difference = actual_cpu_time - baseline_cpu_time
+
     actual_energy_kwh = sim._global_logger._total_energy_consumed
     baseline_energy_kwh = baseline_sim._global_logger._total_energy_consumed
     energy_saved_kwh = baseline_energy_kwh - actual_energy_kwh
@@ -144,6 +148,7 @@ if __name__ == '__main__':
         "baseline_duration_seconds": baseline_duration_s,
         "time_difference_seconds": time_difference_s,
         "energy_saved_kwh": energy_saved_kwh,
+        "cpu_time_difference": cpu_time_difference,
     }
 
     carbon_savings_lines = [
@@ -163,6 +168,10 @@ if __name__ == '__main__':
         f'Actual total energy consumed   : {actual_energy_kwh:.3f} kWh',
         f'Baseline total energy consumed: {baseline_energy_kwh:.3f} kWh',
         f'Energy saved                    : {energy_saved_kwh:.3f} kWh',
+        f'',
+        f'Actual cumulative CPU time      : {actual_cpu_time/3600:.2f} hours',
+        f'Baseline cumulative CPU time    : {baseline_cpu_time/3600:.2f} hours',
+        f'CPU time difference            : {cpu_time_difference/3600:.2f} hours',
         '',
     ]
     with open(os.path.join(run_dir, 'carbon_savings_summary.txt'), 'w') as outfile:
@@ -172,9 +181,11 @@ if __name__ == '__main__':
     print(f'Carbon saved vs baseline: {carbon_saved_g/1e3:.3f} kg')
     print(f'Time difference vs baseline: {time_difference_s/3600:.2f} hours')
     print(f'Energy saved vs baseline: {energy_saved_kwh:.3f} kWh')
+    print(f'CPU time difference vs baseline: {cpu_time_difference/3600:.2f} hours')
     logger.info(f'Carbon saved vs baseline: {carbon_saved_g/1e3:.3f} kg')
     logger.info(f'Time difference vs baseline: {time_difference_s/3600:.2f} hours')
     logger.info(f'Energy saved vs baseline: {energy_saved_kwh:.3f} kWh')
+    logger.info(f'CPU time difference vs baseline: {cpu_time_difference/3600:.2f} hours')
     print(f'Simulation Finished. Check logs directory for output')
 
     sys.exit(0)
