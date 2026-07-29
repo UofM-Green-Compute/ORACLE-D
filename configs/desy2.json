@@ -11,16 +11,16 @@
   "carbon_intensity": {
     "folder": "data/carbon_intensity/",
     "filename": "de_carbon_Intensity_2024_15min.csv",
-    "high_CI_threshold": 400
+    "high_CI_threshold": 300
   },
 
   "jobs": {
     "initial_mix": {
-      "ATLAS":1000
+      "GridPP": 50000
     },
     "regular_incoming_mix": {},
     "incoming_timestep": 3600
   },
 
-  "savings_policy": "none"
+  "savings_policy": "highforecast"
 }

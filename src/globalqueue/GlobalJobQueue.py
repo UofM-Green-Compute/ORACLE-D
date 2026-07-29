@@ -1,14 +1,13 @@
-from collections import defaultdict, deque
 import json
 import os
-
+from collections import defaultdict, deque
 from util import Logging
 
 logger = Logging.get_logger()
 
 class GlobalJobQueue:
 
-    _MAX_ROUTING_LOGS = 2010
+    _MAX_ROUTING_LOGS = 20
     def __init__(self, routing_policy):
         self._global_queue = deque()
         self._site_list = {}

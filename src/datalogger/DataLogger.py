@@ -80,7 +80,6 @@ class DataLogger():
         This should pass power dissipated in per timestep (kWh) such that the total consumption is in kiloWatt-hours
         This should pass carbon consumed in per timestep (g/kWh) such that the total consumption is in grams/kiloWatt-hours
         '''
-        #logger.info(f'Cluster {cluster} consumed {cluster.instantaneous_power_consumed} W')
         self._total_energy_consumed += timestep_energy_consumed # kWh
         self._total_carbon_consumed += timestep_energy_consumed * timestep_carbon_consumed_per_unit_energy #g/kWh
 
@@ -123,6 +122,72 @@ class DataLogger():
                 json.dump(summary, outfile, indent=4)
                 outfile.write('\n')
 
+    def comparison(self, baseline_logger, run_seed, actual_duration_s, baseline_duration_s):
+        percentage_of_baseline_jobs_completed = self._safe_divide(self._jobs_finished, baseline_logger._jobs_finished) * 100
+        carbon_saved_g = baseline_logger._total_carbon_consumed - self._total_carbon_consumed
+        energy_saved_kwh = baseline_logger._total_energy_consumed - self._total_energy_consumed
+        cpu_time_difference = self._cumulative_cpu_time - baseline_logger._cumulative_cpu_time
+        time_difference_s = actual_duration_s - baseline_duration_s
+
+        return {
+        "random_seed": run_seed,
+        "percentage_of_baseline_jobs_completed": percentage_of_baseline_jobs_completed,
+        "actual_total_carbon_g": self._total_carbon_consumed,
+        "baseline_total_carbon_g": baseline_logger._total_carbon_consumed,
+        "carbon_saved_kg": carbon_saved_g / 1e3,
+        "actual_total_energy_consumed": self._total_energy_consumed,
+        "baseline_total_energy_consumed": baseline_logger._total_energy_consumed,
+        "energy_saved_kwh": energy_saved_kwh,
+        "actual_duration_seconds": actual_duration_s,
+        "baseline_duration_seconds": baseline_duration_s,
+        "time_difference_seconds": time_difference_s,
+        "actual_cumulative_cpu_time": self._cumulative_cpu_time,
+        "baseline_cumulative_cpu_time": baseline_logger._cumulative_cpu_time,
+        "cpu_time_difference": cpu_time_difference,
+        }
+
+    def print_comparison(self, comparison, run_dir, print_console=True):
+        lines = self._format_comparison_lines(comparison)
+        os.makedirs(run_dir, exist_ok=True)
+        with open(os.path.join(run_dir, 'carbon_savings_summary.txt'), 'w') as outfile:
+            outfile.write('\n'.join(lines) + '\n')
+
+
+        comparison_summary = [
+            f'Perecentage of baseline jobs completed: {comparison["percentage_of_baseline_jobs_completed"]:.2f} %',
+            f'Carbon saved vs baseline: {comparison["carbon_saved_kg"]:.3f} kg',
+            f'Time difference vs baseline: {comparison["time_difference_seconds"]/3600:.2f} hours',
+            f'Energy saved vs baseline: {comparison["energy_saved_kwh"]:.3f} kWh',
+            f'CPU time difference vs baseline: {comparison["cpu_time_difference"]/3600:.2f} hours',
+        ]
+        self._emit_summary_lines(comparison_summary, print_console=print_console)
+
+    def _format_comparison_lines(self, comparison):
+        return [
+        f'Carbon Savings Summary',
+        f'=======================',
+        f'',
+        f'Random seed used             : {comparison["random_seed"]}',
+        f'Percentage of baseline jobs completed: {comparison["percentage_of_baseline_jobs_completed"]:.2f} %',
+        f'',
+        f'Actual total carbon consumed  : {comparison["actual_total_carbon_g"]/1e3:.3f} kg',
+        f'Baseline total carbon consumed: {comparison["baseline_total_carbon_g"]/1e3:.3f} kg',
+        f'Carbon saved                  : {comparison["carbon_saved_kg"]:.3f} kg',
+        f'',
+        f'Actual run duration            : {comparison["actual_duration_seconds"]/3600:.2f} hours',
+        f'Baseline run duration          : {comparison["baseline_duration_seconds"]/3600:.2f} hours',
+        f'Time difference (actual - base): {comparison["time_difference_seconds"]/3600:.2f} hours',
+        f'',
+        f'Actual total energy consumed   : {comparison["energy_saved_kwh"]:.3f} kWh',
+        f'Baseline total energy consumed: {comparison["baseline_total_energy_consumed"]:.3f} kWh',
+        f'Energy saved                    : {comparison["energy_saved_kwh"]:.3f} kWh',
+        f'',
+        f'Actual cumulative CPU time      : {comparison["cpu_time_difference"]/3600:.2f} hours',
+        f'Baseline cumulative CPU time    : {comparison["baseline_cumulative_cpu_time"]/3600:.2f} hours',
+        f'CPU time difference            : {comparison["cpu_time_difference"]/3600:.2f} hours',
+        '',
+        ]
+        
 
     def _create_summary(self, total_simulated_time, total_real_time):
         return {

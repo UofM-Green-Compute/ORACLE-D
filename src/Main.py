@@ -21,7 +21,6 @@
 # The main repository houses LICENSE and NOTICE files for your infromation 
 # ========================================================================
 
-#NEED TO EDIT MAIN TO ACCOUNT FOR NEW CONFIG STRUCTURE
 import contextlib
 import sys
 
@@ -36,8 +35,6 @@ import random
 
 
 logger = Logging.get_logger()
-
-
 
 if __name__ == '__main__':
     
@@ -86,24 +83,8 @@ if __name__ == '__main__':
             "jobs": site["jobs"],
             "savings_policy": site.get("savings_policy", config["Simulation"].get("savings_policy", "none")),
         })
+    baseline_config, baseline_cluster_configs = Simulation.baseline_config(config, cluster_configs, run_dir)
 
-
-    baseline_run_dir = os.path.join(run_dir, 'baseline')
-    os.makedirs(baseline_run_dir, exist_ok=True)
-
-    baseline_config=dict(config)
-    baseline_config["output"] = dict(config["output"])
-    baseline_config["output"]["run_dir"] = baseline_run_dir
-    baseline_config["Simulation"] = dict(config["Simulation"])
-    baseline_config["Simulation"]["savings_policy"] = "none"
-    baseline_config["output"]["verbosity"] = "low"
-    baseline_config["Simulation"]["routing"] = {"policy": "origin_site"}
-
-    baseline_cluster_configs = []
-    for cluster_config in cluster_configs:
-        baseline_cluster_config = dict(cluster_config)
-        baseline_cluster_config["savings_policy"] = "none"
-        baseline_cluster_configs.append(baseline_cluster_config)
 
     logger.info("Running baseline simulation with no carbon savings policy") 
     print(f"Running baseline simulation with no carbon savings policy")
@@ -114,7 +95,6 @@ if __name__ == '__main__':
             baseline_sim = Simulation(baseline_config, baseline_cluster_configs)
             baseline_sim.start()
 
-
     logger.info("Running actual simulation")
     print(f"Running actual simulation")
     random.seed(run_seed)
@@ -122,71 +102,8 @@ if __name__ == '__main__':
     sim = Simulation(config, cluster_configs)
     sim.start()
 
-        # --- Compare actual vs baseline ---
-    actual_carbon_g = sim._global_logger._total_carbon_consumed
-    baseline_carbon_g = baseline_sim._global_logger._total_carbon_consumed
-    carbon_saved_g = baseline_carbon_g - actual_carbon_g
-
-    actual_duration_s = sim._final_sim_seconds
-    baseline_duration_s = baseline_sim._final_sim_seconds
-    time_difference_s = actual_duration_s - baseline_duration_s
-
-    actual_cpu_time = sim._global_logger._cumulative_cpu_time
-    baseline_cpu_time = baseline_sim._global_logger._cumulative_cpu_time
-    cpu_time_difference = actual_cpu_time - baseline_cpu_time
-
-    actual_energy_kwh = sim._global_logger._total_energy_consumed
-    baseline_energy_kwh = baseline_sim._global_logger._total_energy_consumed
-    energy_saved_kwh = baseline_energy_kwh - actual_energy_kwh
-
-    comparison = {
-        "random_seed": run_seed,
-        "actual_total_carbon_g": actual_carbon_g,
-        "baseline_total_carbon_g": baseline_carbon_g,
-        "carbon_saved_g": carbon_saved_g,
-        "carbon_saved_kg": carbon_saved_g / 1e3,
-        "actual_duration_seconds": actual_duration_s,
-        "baseline_duration_seconds": baseline_duration_s,
-        "time_difference_seconds": time_difference_s,
-        "energy_saved_kwh": energy_saved_kwh,
-        "cpu_time_difference": cpu_time_difference,
-    }
-
-    carbon_savings_lines = [
-        f'Carbon Savings Summary',
-        f'=======================',
-        f'',
-        f'Random seed used             : {run_seed}',
-        f'',
-        f'Actual total carbon consumed  : {actual_carbon_g/1e3:.3f} kg',
-        f'Baseline total carbon consumed: {baseline_carbon_g/1e3:.3f} kg',
-        f'Carbon saved                  : {carbon_saved_g/1e3:.3f} kg',
-        f'',
-        f'Actual run duration            : {actual_duration_s/3600:.2f} hours',
-        f'Baseline run duration          : {baseline_duration_s/3600:.2f} hours',
-        f'Time difference (actual - base): {time_difference_s/3600:.2f} hours',
-        f'',
-        f'Actual total energy consumed   : {actual_energy_kwh:.3f} kWh',
-        f'Baseline total energy consumed: {baseline_energy_kwh:.3f} kWh',
-        f'Energy saved                    : {energy_saved_kwh:.3f} kWh',
-        f'',
-        f'Actual cumulative CPU time      : {actual_cpu_time/3600:.2f} hours',
-        f'Baseline cumulative CPU time    : {baseline_cpu_time/3600:.2f} hours',
-        f'CPU time difference            : {cpu_time_difference/3600:.2f} hours',
-        '',
-    ]
-    with open(os.path.join(run_dir, 'carbon_savings_summary.txt'), 'w') as outfile:
-        for line in carbon_savings_lines:
-            outfile.write(f'{line}\n')
-
-    print(f'Carbon saved vs baseline: {carbon_saved_g/1e3:.3f} kg')
-    print(f'Time difference vs baseline: {time_difference_s/3600:.2f} hours')
-    print(f'Energy saved vs baseline: {energy_saved_kwh:.3f} kWh')
-    print(f'CPU time difference vs baseline: {cpu_time_difference/3600:.2f} hours')
-    logger.info(f'Carbon saved vs baseline: {carbon_saved_g/1e3:.3f} kg')
-    logger.info(f'Time difference vs baseline: {time_difference_s/3600:.2f} hours')
-    logger.info(f'Energy saved vs baseline: {energy_saved_kwh:.3f} kWh')
-    logger.info(f'CPU time difference vs baseline: {cpu_time_difference/3600:.2f} hours')
+    comparison = sim.compare_to_baseline(baseline_sim, run_seed)
+    sim.print_comparison(comparison, run_dir)
     print(f'Simulation Finished. Check logs directory for output')
 
     sys.exit(0)

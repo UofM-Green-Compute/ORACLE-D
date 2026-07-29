@@ -42,6 +42,22 @@ class ClusterUnit:
 
 class Simulation():
 
+    @staticmethod
+    def baseline_config(config, cluster_configs, run_dir):
+        baseline_run_dir = os.path.join(run_dir, 'baseline')
+        os.makedirs(baseline_run_dir, exist_ok=True)
+
+        baseline_config = dict(config)
+        baseline_config["output"] = dict(config["output"])
+        baseline_config["output"]["run_dir"] = baseline_run_dir
+        baseline_config["Simulation"] = dict(config["Simulation"])
+        baseline_config["Simulation"]["savings_policy"] = "none"
+        baseline_config["output"]["verbosity"] = "low"
+        baseline_config["Simulation"]["routing"] = {"policy": "origin_site"}
+
+        baseline_cluster_configs = [{**cluster_config, "savings_policy": "none"} for cluster_config in cluster_configs]
+        return baseline_config, baseline_cluster_configs
+
     def __init__(self, config, cluster_configs, simulation_time=None):
         self._config = config
         self.desiredStartTime = config["Simulation"]["desired_starttime"] # STEVE '2018-01-01 00:30' : Starts at the simulation at a set time can be set to any time you wish in the format '2024-01-12 15:00'
@@ -63,10 +79,6 @@ class Simulation():
         self._finish_reason = None
         self._global_logger = None
         self._final_sim_seconds = None
-
-        #print('Setting up simulation.')
-        #print('Start date: ' + self._simulation_time._start_time.strftime("%d/%m/%y"))
-        #print('Timestep: ' + str(self._simulation_time.get_timestep()) + ' seconds')
                
         self._cluster_units = []
         for index, cluster_config in enumerate(cluster_configs, start=1):
@@ -418,7 +430,14 @@ class Simulation():
                 worker_node.clock_down()
                 worker_node.clock_down()
 
+    def compare_to_baseline(self, baseline_simulation, run_seed):
+        return self._global_logger.comparison(baseline_simulation._global_logger, run_seed,
+                                                       self._final_sim_seconds, baseline_simulation._final_sim_seconds)
 
+    def print_comparison(self, comparison, run_dir, print_console=True):
+        self._global_logger.print_comparison(comparison, run_dir, print_console=print_console)
+
+       
     def start(self):
         while True:
             if self.step():
