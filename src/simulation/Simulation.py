@@ -17,9 +17,10 @@ from cluster.Cluster import Cluster
 from cluster.ClusterLoader import load_cluster_inventory
 from datalogger.DataLogger import DataLogger
 from jobs.JobScheduler import JobScheduler
-from simulation.GlobalJobQueue import GlobalJobQueue
+from globalqueue.GlobalJobQueue import GlobalJobQueue
 from simulation.Time import SimulationTime
 from util import Logging
+from globalqueue.RoutingPolicies import RoutingPolicyFactory
 
 
 logger = Logging.get_logger()
@@ -54,6 +55,7 @@ class Simulation():
         self._simulation_starting_segment = self._simulation_time.find_hh_segment(self._simulation_time._time)
         self._simulation_maxfinal_segment = self._simulation_time.find_hh_segment(self._simulation_time._time + timedelta(seconds=self._simulation_length), 'next')
 
+        self.routing_policy_name = config["Simulation"]["routing"]["policy"]
         self._verbosity = config["output"]["verbosity"]
         self._run_dir = config["output"]["run_dir"]
         self._finished = False
@@ -71,7 +73,8 @@ class Simulation():
             unit = self._build_cluster_unit(cluster_config, index)
             self._cluster_units.append(unit)
 
-        self._global_scheduler = GlobalJobQueue()
+        routing_policy = RoutingPolicyFactory.create_routing_policy(self.routing_policy_name)
+        self._global_scheduler = GlobalJobQueue(routing_policy)
         self._global_scheduler.set_clusters({unit.cluster_id: unit.cluster for unit in self._cluster_units})
 
         for unit, cluster_config in zip(self._cluster_units, cluster_configs):

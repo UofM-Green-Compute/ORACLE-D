@@ -97,6 +97,7 @@ if __name__ == '__main__':
     baseline_config["Simulation"] = dict(config["Simulation"])
     baseline_config["Simulation"]["savings_policy"] = "none"
     baseline_config["output"]["verbosity"] = "low"
+    baseline_config["Simulation"]["routing"] = {"policy": "origin_site"}
 
     baseline_cluster_configs = []
     for cluster_config in cluster_configs:
