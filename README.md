@@ -4,14 +4,15 @@
 The Optimised Resource Analysis and Carbon Legacy Estimator for Data centres (ORACLE-D) Framework is a framework for simulating different types of compute nodes, seeing how they deal with incoming jobs, and how much power consumed/carbon emitted in doing so. The initial idea was to use this to investigate how energy consumption and/or carbon usage can be reduced an average Grid computing site. This software was written in Python3
 
 ## Project status
-Version 1.1.0: Betelgeuse has been tagged for release on 17th July 2026.
-Version 1.0.0: Antares has been tagged for release on 31st March 2026.
 Version 0.1.0 has been presented at the 2024 HEPiX Spring Workshop in Paris.   
 
-| Release Name | DOI link |
-| :------------: | :------: |
-| Betelgeuse     |          |
-| Antares        | <a href="https://doi.org/10.5281/zenodo.20720295"><img src="https://zenodo.org/badge/1197685978.svg" alt="v1.0.0"></a>|
+Release Date | Version Number | Release Name | DOI link |
+| :------------: | :------------: | :------------: | :------: |
+| ------     | LATEST |  ------        | <a href="https://doi.org/10.5281/zenodo.20720295"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.20720295.svg" alt="LATEST"></a> |
+| 2026-07-17 | 1.1.0  | Betelgeuse     | <a href="https://doi.org/10.5281/zenodo.21416697"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.21416697.svg" alt="v1.1.0"></a> |
+| 2026-03-31* | 1.0.0  | Antares       | <a href="https://doi.org/10.5281/zenodo.20720296"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.20720296.svg" alt="v1.0.0"></a> |
+
+\* Due to a technical issue, the DOI for Antares was generated on the 2026-06-17, but the code for the release was frozen on 2026-03-31, and the DOI generated on that date for this repository no longer works. 
 
 ## Current Functionality
 The simulation framework is designed to simulate the amount of energy and carbon used* when a computing site[1] performing work[2] is run in different ways[3]. The simulation is modular so [1],[2] and[3] are easily editable. 
