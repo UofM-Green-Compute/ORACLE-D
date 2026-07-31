@@ -12,7 +12,7 @@ import sys
 from cluster.WorkerNode import *
 from util import Logging
 from datalogger.DataLogger import DataLogger
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 logger = Logging.get_logger()
@@ -48,6 +48,8 @@ class Cluster():
         self._energy_saving_try = esgimmick
         self._cditerant = 0  # Create a iterant that marks place in the carbon data list w.r.t simulation time to be incrimented w.r.t the timestep of the simulation.
         self._CIThresholdValue = C_Intensity_Threshold_Value
+        self._max_forecast_saved_day = None
+        self._max_forecast_saved_value = None
         self._in_clkdown = False # Flags to make decisions based on the status of the cluster.
         self._anticipate_clkdown = False
         self._anticipate_clockup = False
@@ -116,6 +118,41 @@ class Cluster():
         occ = coresused/coresavail
         return occ
 
+    def max_forecast_next_days(self, days=30):
+        current_day = self._simulation_time.get_current_datetime().date()
+        if self._max_forecast_saved_day == current_day:
+            return self._max_forecast_saved_value
+ 
+        now = self._simulation_time.get_current_datetime()
+        cutoff = now + timedelta(days=days)
+ 
+        max_value = None
+        for row in self._carbondata[self._cditerant:]:
+            row_time = datetime.strptime(row[0], '%Y-%m-%dT%H:%M:%S')
+            if row_time > cutoff:
+                break
+            forecast_value = float(row[1])
+            if max_value is None or forecast_value > max_value:
+                max_value = forecast_value
+ 
+        self._max_forecast_saved_value = max_value
+        self._max_forecast_saved_day = current_day
+        return max_value
+
+    def get_current_carbon_intensity(self):
+        return float(self._carbondata[self._cditerant][1])
+
+    def get_weighted_carbon_intensity(self):
+        return float(self._carbondata[self._cditerant][1]) / self.max_forecast_next_days(7)
+    
+    def queue_length(self):
+        return len(self._queued_jobs)
+
+    def get_queue_density(self):
+        if self.get_number_of_cores() == 0:
+            return 0
+        return len(self._queued_jobs) / self.get_number_of_cores()
+    
     def update(self):
         # ---------------------------------
         #    Job Management Steps 

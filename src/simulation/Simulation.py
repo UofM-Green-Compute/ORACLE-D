@@ -313,11 +313,12 @@ class Simulation():
                 continue
             unit.cluster.update()
             # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
-            if unit.cluster._mission_accomplished == True:
-                unit.finished = True
-                unit.finish_reason = 'no_jobs'
-                unit.finish_sim_seconds = simtottime.total_seconds()
-        
+            if unit.cluster._mission_accomplished:
+                if not self._global_scheduler.has_jobs() and not self.future_jobs_expected():
+                    unit.finished = True
+                    unit.finish_reason = 'no_jobs'
+                    unit.finish_sim_seconds = simtottime.total_seconds()
+
         # Second end condition: When the configured simulation length has elapsed.
         if simtottime.total_seconds() >= self._simulation_length:
             for unit in self._cluster_units:
@@ -329,9 +330,10 @@ class Simulation():
         if all(unit.finished for unit in self._cluster_units):
             self._finalise('all_clusters_finished')
             return True
-
         return False
 
+    def future_jobs_expected(self):
+        return any(unit.job_scheduler._regular_incoming_jobs for unit in self._cluster_units)
 
     def _write_simulation_parameters(self, unit, simulation_parameters):
         run_dir = unit.data_logger._run_dir

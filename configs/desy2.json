@@ -1,5 +1,5 @@
 {
-  "site_id": "DESY2",
+  "site_id": "DESY GB",
 
   "cluster": {
     "cluster_name": "DEFAULT",
@@ -10,17 +10,17 @@
 
   "carbon_intensity": {
     "folder": "data/carbon_intensity/",
-    "filename": "de_carbon_Intensity_2024_15min.csv",
+    "filename": "gb_carbon_intensity.csv",
     "high_CI_threshold": 300
   },
 
   "jobs": {
     "initial_mix": {
-      "GridPP": 50000
+      "GridPP": 500
     },
-    "regular_incoming_mix": {},
+    "regular_incoming_mix": {"GridPP": 500},
     "incoming_timestep": 3600
   },
 
-  "savings_policy": "highforecast"
+  "savings_policy": "none"
 }

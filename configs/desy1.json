@@ -16,9 +16,9 @@
 
   "jobs": {
     "initial_mix": {
-      "GridPP": 50000
+      "GridPP": 500
     },
-    "regular_incoming_mix": {},
+    "regular_incoming_mix": {"GridPP": 500},
     "incoming_timestep": 3600
   },
 

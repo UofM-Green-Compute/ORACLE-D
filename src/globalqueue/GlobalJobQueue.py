@@ -7,7 +7,7 @@ logger = Logging.get_logger()
 
 class GlobalJobQueue:
 
-    _MAX_ROUTING_LOGS = 20
+    _MAX_ROUTING_LOGS = 2000
     def __init__(self, routing_policy):
         self._global_queue = deque()
         self._site_list = {}

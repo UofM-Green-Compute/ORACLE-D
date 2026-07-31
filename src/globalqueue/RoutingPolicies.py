@@ -1,3 +1,5 @@
+from cluster.Cluster import Cluster
+
 class OriginSiteRouting:
     def choose_cluster(self, job, clusters):
         if job is None or clusters is None:
@@ -13,10 +15,28 @@ class OriginSiteRouting:
                 return cluster
         return None
 
+class ProportionalCIRouting:
+    def choose_cluster(self, job, clusters):
+        if job is None or clusters is None:
+            return None
+        clusters = clusters.values() if type(clusters) is dict else clusters
+
+        chosen_cluster = None
+        lowest_ci_score = None
+
+        for cluster in clusters:
+                cluster_ci_score = cluster.get_weighted_carbon_intensity()
+                if lowest_ci_score is None or cluster_ci_score < lowest_ci_score:
+                    lowest_ci_score = cluster_ci_score
+                    chosen_cluster = cluster
+
+        return chosen_cluster
+
 class RoutingPolicyFactory:
     def create_routing_policy(policy_name):
         policies = {
-            "origin_site": OriginSiteRouting
+            "origin_site": OriginSiteRouting,  
+            "proportional_CI": ProportionalCIRouting,
         }
 
         try:
