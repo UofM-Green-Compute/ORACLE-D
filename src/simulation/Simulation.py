@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from cluster.Cluster import Cluster
 from datalogger.DataLogger import DataLogger
-from jobs.JobScheduler import JobScheduler
+from jobs.LocalScheduler import LocalJobScheduler
 from simulation.Time import SimulationTime
 from util import Logging
 
@@ -24,12 +24,12 @@ logger = Logging.get_logger()
 
 class Simulation():
 
-    def __init__(self, config, inventory):
-        
-        self.desiredStartTime             = config["Simulation"]["desired_starttime"] # STEVE '2018-01-01 00:30' : Starts at the simulation at a set time can be set to any time you wish in the format '2024-01-12 15:00'
-        self._simulation_time             = SimulationTime(config, self.desiredStartTime) #If you want this to be set to the current time, set desiredStartTime to None
-        self._simulation_length           = config["Simulation"]["simulation_length"] # Desired maximum length of the simulation in seconds. (For one year 365*24*3600)
-        self._simulation_time._timestep_seconds = config["Simulation"]["timestep"] # Simulation time step in seconds. #Steve was using 200
+    def __init__(self, config, inventory, site_id, simulation_time, simulation_length, global_scheduler):
+
+        self.site_id = site_id
+        self._simulation_time = simulation_time
+        self._simulation_length = simulation_length
+        self._global_scheduler = global_scheduler
         # Finds the half-hour time segment to which the start of the simulation belongs and the one after the end time.
         self._simulation_starting_segment = self._simulation_time.find_hh_segment(self._simulation_time._time)
         self._simulation_maxfinal_segment = self._simulation_time.find_hh_segment(self._simulation_time._time + timedelta(seconds=self._simulation_length), 'next')
@@ -115,22 +115,17 @@ class Simulation():
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}
         # Format for regular jobs is a list  of lists of a dictionary of [[{'VO1':jobs per X seconds, 'VO2':jobs per X seconds, [...]}, X], [....] ]
         # self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, {'GridPP':10} , None)
-        if config["jobs"]["regular_incoming_mix"] == {}:
-            jobs_refill = None
-        else:
-            jobs_refill = [[config["jobs"]["regular_incoming_mix"], config["jobs"]["incoming_timestep"]]]
 
-        self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, config["jobs"]["initial_mix"] , jobs_refill)
-        # self._jobScheduler = JobScheduler(self._simulation_time, self._cluster, {'GridPP':100000}, [[{'GridPP':250}, 3600*10]])
-        self._jobdescript  = "RF20PMTest-50000LHCJobs-Base" # Add here what kind of jobs you are running.
-
+        self._jobScheduler = LocalJobScheduler(self.site_id, self._simulation_time, self._cluster)
+        self._global_scheduler.register_site(self.site_id, self._jobScheduler)
 
         print ('Jobs: ', end='')
-        for vo, jobs in self._jobScheduler._inital_job_mix.items():
+        for vo, jobs in self._global_scheduler.get_inital_mix(self.site_id).items():
             print(vo + ': ' + str(jobs), end='')
-        if self._jobScheduler._regular_incoming_jobs:
+        regular_jobs = self._global_scheduler.get_regular_jobs(self.site_id)
+        if regular_jobs:
             print(' then ', end='')
-            for l1 in self._jobScheduler._regular_incoming_jobs:
+            for l1 in regular_jobs:
                 vos = l1[0]
                 secs = l1[1]
                 for vo, jobs in vos.items():
@@ -161,17 +156,16 @@ class Simulation():
             worker_node = node(self._simulation_time)
             cluster_inventory[worker_node.hostname] = quantity
 
-        regular_jobs = []
-        if self._jobScheduler._regular_incoming_jobs:
-            regular_jobs = [
-                {
-                    "job_mix": job_mix,
-                    "incoming_timestep_seconds": secs,
-                }
-                for job_mix, secs in self._jobScheduler._regular_incoming_jobs
-            ]
+        regular_jobs = [
+            {
+                "job_mix": job_mix,
+                "incoming_timestep_seconds": secs,
+            }
+            for job_mix, secs in self._global_scheduler.get_regular_jobs(self.site_id)
+        ]
 
         return {
+            "site_id": self.site_id,
             "start_time": str(self._simulation_time.get_start_datetime()),
             "max_end_time": str(self._simulation_time.get_start_datetime() + timedelta(seconds=self._simulation_length)),
             "simulation_length_seconds": self._simulation_length,
@@ -191,7 +185,7 @@ class Simulation():
                 "worker_node_inventory": cluster_inventory,
             },
             "jobs": {
-                "initial": self._jobScheduler._inital_job_mix,
+                "initial": self._global_scheduler.get_inital_mix(self.site_id),
                 "regular_incoming": regular_jobs,
             },
         }
@@ -231,8 +225,8 @@ class Simulation():
             return 'none'
         return ', '.join(f'{vo}: {jobs}' for vo, jobs in job_mix.items())
 
-
-    def start(self):
+    def prepare(self):
+        #runs once before shared loops starts
         #Permantly run nodes clocked down.
         if self._cluster._energy_saving_try == 'cd':
             for worker_node in self._cluster._worker_nodes:
@@ -242,37 +236,17 @@ class Simulation():
                 worker_node.clock_down()
                 worker_node.clock_down()
 
-        while True:
-            simtottime  = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime() # Simulated Time
-            
-            # Update the state of the scheduler
-            self._jobScheduler.update()
+    def update(self):
+        #called once per timestep by main
+        self._cluster.update()
 
-            # Update the state of the cluster
-            self._cluster.update() 
-            
-            # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
-            if self._cluster._mission_accomplished == True: 
-                realtottime = datetime.now() - self._simulation_time.get_origin_datetime() # Real Time
-                self._datalogger.print_summary(True, self._jobdescript, simtottime.total_seconds(), self._simulation_time.get_timestep(), realtottime.total_seconds())
-                
-                if self._verbosity in ["medium", "high"]:
-                    logger.info(f'No more jobs!')
-                    logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
-                print(f'Simulation Finished. Check logs directory for output')
-                sys.exit(0)
-            
-            # Second end condition: When two weeks in simulation time has passed.
-            if simtottime.total_seconds() >= self._simulation_length:
-                realtottime = datetime.now() - self._simulation_time.get_origin_datetime() # Real Time
-                self._datalogger.print_summary(True, self._jobdescript, simtottime.total_seconds(), self._simulation_time.get_timestep(), realtottime.total_seconds())
-                
-                if self._verbosity in ["medium", "high"]:
-                    logger.info(f'You have been running for a week! Time to stop')
-                    logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
-                print(f'Simulation Finished. Check logs directory for output')
-                sys.exit(0)    
+    def is_mission_accomplished(self):
+        return self._cluster._mission_accomplished
 
-            # Move forward in time
-            self._simulation_time.advance() 
-            
+    def finish(self, simtottime_seconds):
+        realtottime_seconds = (datetime.now() - self._simulation_time.get_origin_datetime()).total_seconds()
+        self._datalogger.print_summary(True, self._jobdescript, simtottime_seconds.total_seconds(), self._simulation_time.get_timestep(), realtottime_seconds)                  
+        if self._verbosity in ["medium", "high"]:
+            logger.info(f'Site {self.site_id}: No more jobs!')
+            logger.info(f'Ending {self.site_id} simulation at {self._simulation_time.get_current_datetime()}')
+        print(f'{self.site_id} Simulation Finished. Check logs directory for output')
