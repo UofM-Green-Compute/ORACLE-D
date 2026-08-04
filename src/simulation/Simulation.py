@@ -91,7 +91,7 @@ class Simulation():
 
         for site, cluster_config in zip(self._cluster_sites, cluster_configs):
             self._attach_job_scheduler(site, cluster_config)
-        self._global_scheduler.set_local_schedulers({site.site_id: site.cluster for site in self._cluster_sites})
+        self._global_scheduler.set_local_schedulers({site.site_id: site.job_scheduler for site in self._cluster_sites})
 
         self._global_scheduler.update()
 

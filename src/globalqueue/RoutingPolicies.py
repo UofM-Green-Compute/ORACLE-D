@@ -1,10 +1,11 @@
 from cluster.Cluster import Cluster
+from jobs.JobScheduler import JobScheduler
 from util import Logging
 
 logger = Logging.get_logger()
 
 class OriginSiteRouting:
-    def choose_cluster(self, job, clusters):
+    def choose_scheduler(self, job, clusters):
         if job is None or clusters is None:
             return None
 
@@ -22,28 +23,31 @@ class ProportionalCIRouting:
     def __init__(self):
         self._ci_score_store = {}
 
-    def prepare(self, clusters):
-        cluster_list = clusters.values() if isinstance(clusters,dict) else clusters
-        self._ci_score_store = {id(cluster): cluster.get_weighted_carbon_intensity() for cluster in cluster_list}
-        for cluster in cluster_list:
-            site_id = getattr(cluster, 'site_id', getattr(cluster, '_site_id', 'Unknown'))
-            logger.info(f"Cluster {site_id} has weighted carbon intensity score: {self._ci_score_store[id(cluster)]}")
+    def prepare(self, schedulers):
+        scheduler_list = schedulers.values() if isinstance(schedulers,dict) else schedulers
+        self._ci_score_store = {
+            id(scheduler): scheduler.get_weighted_carbon_intensity()
+            for scheduler in scheduler_list
+        }
+        for scheduler in scheduler_list:
+            site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', 'Unknown'))
+            logger.info(f"Scheduler {site_id} has weighted carbon intensity score: {self._ci_score_store[id(scheduler)]}")
 
-    def choose_cluster(self, job, clusters):
-        if job is None or clusters is None:
+    def choose_scheduler(self, job, schedulers):
+        if job is None or schedulers is None:
             return None
-        clusters = clusters.values() if type(clusters) is dict else clusters
+        schedulers = schedulers.values() if type(schedulers) is dict else schedulers
 
-        chosen_cluster = None
+        chosen_site = None
         lowest_ci_score = None
 
-        for cluster in clusters:
-                cluster_ci_score = self._ci_score_store.get(id(cluster))
-                if lowest_ci_score is None or cluster_ci_score < lowest_ci_score:
-                    lowest_ci_score = cluster_ci_score
-                    chosen_cluster = cluster
+        for scheduler in schedulers:
+            site_ci_score = self._ci_score_store.get(id(scheduler))
+            if lowest_ci_score is None or site_ci_score < lowest_ci_score:
+                lowest_ci_score = site_ci_score
+                chosen_site = scheduler
 
-        return chosen_cluster
+        return chosen_site
 
 class RoutingPolicyFactory:
     def create_routing_policy(policy_name):

@@ -127,6 +127,9 @@ class DataLogger():
         carbon_saved_g = baseline_logger._total_carbon_consumed - self._total_carbon_consumed
         energy_saved_kwh = baseline_logger._total_energy_consumed - self._total_energy_consumed
         cpu_time_difference = self._cumulative_cpu_time - baseline_logger._cumulative_cpu_time
+        cpu_time_per_job = self._safe_divide(self._cumulative_cpu_time, self._jobs_finished)
+        baseline_cpu_time_per_job = self._safe_divide(baseline_logger._cumulative_cpu_time, baseline_logger._jobs_finished)
+        cpu_time_per_job_difference = cpu_time_per_job - baseline_cpu_time_per_job
         time_difference_s = actual_duration_s - baseline_duration_s
 
         return {
@@ -144,6 +147,9 @@ class DataLogger():
         "actual_cumulative_cpu_time": self._cumulative_cpu_time,
         "baseline_cumulative_cpu_time": baseline_logger._cumulative_cpu_time,
         "cpu_time_difference": cpu_time_difference,
+        "actual_cpu_time_per_job": cpu_time_per_job,
+        "baseline_cpu_time_per_job": baseline_cpu_time_per_job,
+        "cpu_time_per_job_difference": cpu_time_per_job_difference,
         }
 
     def print_comparison(self, comparison, run_dir, print_console=True):
@@ -158,7 +164,7 @@ class DataLogger():
             f'Carbon saved vs baseline: {comparison["carbon_saved_kg"]:.3f} kg',
             f'Time difference vs baseline: {comparison["time_difference_seconds"]/3600:.2f} hours',
             f'Energy saved vs baseline: {comparison["energy_saved_kwh"]:.3f} kWh',
-            f'CPU time difference vs baseline: {comparison["cpu_time_difference"]/3600:.2f} hours',
+            f'CPU time per job difference vs baseline: {comparison["cpu_time_per_job_difference"]/3600:.2f} hours',
         ]
         self._emit_summary_lines(comparison_summary, print_console=print_console)
 

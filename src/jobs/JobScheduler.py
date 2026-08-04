@@ -53,6 +53,9 @@ class JobScheduler():
         #will add temporal shifting here at a later time
         self._cluster.submit_job(job)
 
+    def get_weighted_carbon_intensity(self):
+        return self._cluster.get_weighted_carbon_intensity()
+
     def update(self):
         # Jobs to be submitted while the simulation is ongoing
         # Format for regular jobs is a tuple of a dictionary of [{'VO1':jobs per X seconds, 'VO2':jobs per X seconds, [...]}, X]
