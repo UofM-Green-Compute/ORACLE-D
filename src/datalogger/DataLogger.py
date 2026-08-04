@@ -75,21 +75,21 @@ class DataLogger():
         # Yes, Sam, I know... ;-)
         self._cumulative_cpu_time += job.duration * job.cores_req
 
-    def energy_and_carbon_consumed(self, timestep_energy_consumed, timestep_carbon_consumed_per_unit_energy):
+    def energy_and_carbon_consumed(self, timestep_energy_consumed, timestep_carbon_consumed_per_site_energy):
         '''
         This should pass power dissipated in per timestep (kWh) such that the total consumption is in kiloWatt-hours
         This should pass carbon consumed in per timestep (g/kWh) such that the total consumption is in grams/kiloWatt-hours
         '''
         self._total_energy_consumed += timestep_energy_consumed # kWh
-        self._total_carbon_consumed += timestep_energy_consumed * timestep_carbon_consumed_per_unit_energy #g/kWh
+        self._total_carbon_consumed += timestep_energy_consumed * timestep_carbon_consumed_per_site_energy #g/kWh
 
-    def peaktime_energy_and_carbon_consumed(self, timestep_energy_consumed, timestep_carbon_consumed_per_unit_energy):
+    def peaktime_energy_and_carbon_consumed(self, timestep_energy_consumed, timestep_carbon_consumed_per_site_energy):
         '''
         This should pass power dissipated in per timestep (kWh) such that the total consumption is in kiloWatt-hours
         This should pass carbon consumed in per timestep (g/kWh) such that the total consumption is in grams/kiloWatt-hours
         '''
         self._peaktime_energy_consumed += timestep_energy_consumed # kWh
-        self._peaktime_carbon_consumed += timestep_energy_consumed * timestep_carbon_consumed_per_unit_energy #g/kWh  
+        self._peaktime_carbon_consumed += timestep_energy_consumed * timestep_carbon_consumed_per_site_energy #g/kWh  
     
     def sum_occupancy(self, timestep_occupancy):
         '''

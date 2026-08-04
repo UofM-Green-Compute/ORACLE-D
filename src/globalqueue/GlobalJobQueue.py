@@ -16,7 +16,7 @@ class GlobalJobQueue:
         self._jobs_routed = 0
         self._routing_policy = routing_policy
 
-    def set_clusters(self, site_list):
+    def set_local_schedulers(self, site_list):
         self._site_list = site_list
 
     def submit_job(self, job):

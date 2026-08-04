@@ -1,4 +1,7 @@
 from cluster.Cluster import Cluster
+from util import Logging
+
+logger = Logging.get_logger()
 
 class OriginSiteRouting:
     def choose_cluster(self, job, clusters):
@@ -16,6 +19,16 @@ class OriginSiteRouting:
         return None
 
 class ProportionalCIRouting:
+    def __init__(self):
+        self._ci_score_store = {}
+
+    def prepare(self, clusters):
+        cluster_list = clusters.values() if isinstance(clusters,dict) else clusters
+        self._ci_score_store = {id(cluster): cluster.get_weighted_carbon_intensity() for cluster in cluster_list}
+        for cluster in cluster_list:
+            site_id = getattr(cluster, 'site_id', getattr(cluster, '_site_id', 'Unknown'))
+            logger.info(f"Cluster {site_id} has weighted carbon intensity score: {self._ci_score_store[id(cluster)]}")
+
     def choose_cluster(self, job, clusters):
         if job is None or clusters is None:
             return None
@@ -25,7 +38,7 @@ class ProportionalCIRouting:
         lowest_ci_score = None
 
         for cluster in clusters:
-                cluster_ci_score = cluster.get_weighted_carbon_intensity()
+                cluster_ci_score = self._ci_score_store.get(id(cluster))
                 if lowest_ci_score is None or cluster_ci_score < lowest_ci_score:
                     lowest_ci_score = cluster_ci_score
                     chosen_cluster = cluster

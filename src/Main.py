@@ -77,7 +77,7 @@ if __name__ == '__main__':
     cluster_configs = []
     for site in config["sites"]:
         cluster_configs.append({
-            "cluster_id": site["site_id"],
+            "site_id": site["site_id"],
             "cluster": site["cluster"],
             "carbon_intensity": site["carbon_intensity"],
             "jobs": site["jobs"],

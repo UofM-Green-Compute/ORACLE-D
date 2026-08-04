@@ -53,7 +53,7 @@ class Cluster():
         self._in_clkdown = False # Flags to make decisions based on the status of the cluster.
         self._anticipate_clkdown = False
         self._anticipate_clockup = False
-        self.site_id = config.get("site_id", config.get("cluster_id", None))
+        self.site_id = config.get("site_id", config.get("site_id", None))
   
         self._mission_accomplished = False # State of completion for the simulation. 
         self._worker_node_inventory = worker_node_inventory
@@ -139,11 +139,19 @@ class Cluster():
         self._max_forecast_saved_day = current_day
         return max_value
 
+    def _get_carbon_data_row(self, offset=0):
+        index = self._cditerant + offset
+        if index < 0:
+            index = 0
+        if index >= len(self._carbondata):
+            index = len(self._carbondata) - 1
+        return self._carbondata[index]
+
     def get_current_carbon_intensity(self):
-        return float(self._carbondata[self._cditerant][1])
+        return float(self._get_carbon_data_row()[1])
 
     def get_weighted_carbon_intensity(self):
-        return float(self._carbondata[self._cditerant][1]) / self.max_forecast_next_days(7)
+        return float(self._get_carbon_data_row()[1]) / self.max_forecast_next_days(7)
     
     def queue_length(self):
         return len(self._queued_jobs)
@@ -198,7 +206,10 @@ class Cluster():
         #    Energy Saving Try Section
         # ---------------------------------
         # Compares the simulation time wrt the time in the hh segment and moves a pointer to the correct hh segment carbon usage.
-        if self._simulation_time.get_current_datetime() > datetime.strptime(self._carbondata[self._cditerant+1][0], '%Y-%m-%dT%H:%M:%S'):
+        while self._cditerant + 1 < len(self._carbondata):
+            next_timestamp = datetime.strptime(self._get_carbon_data_row(1)[0], '%Y-%m-%dT%H:%M:%S')
+            if self._simulation_time.get_current_datetime() <= next_timestamp:
+                break
             self._cditerant += 1
         # Code to clock down nodes between 5pm and 9pm everyday  
         if 'cd1721' in self._energy_saving_try:             
@@ -229,11 +240,12 @@ class Cluster():
                 self._anticipate_clockup = False
                 self._in_clkdown = False
 
-            if self._in_clkdown == False and float(self._carbondata[self._cditerant+1][1]) > self._CIThresholdValue+5:
+            next_row = self._get_carbon_data_row(1)
+            if self._in_clkdown == False and float(next_row[1]) > self._CIThresholdValue+5:
                 print("Usage is expected to be high, next timestep we'll clock down the nodes.")
                 self._anticipate_clkdown = True
 
-            if self._in_clkdown == True and float(self._carbondata[self._cditerant+1][1]) < self._CIThresholdValue-5:
+            if self._in_clkdown == True and float(next_row[1]) < self._CIThresholdValue-5:
                 print("Usage is going down, next timestep we'll clock up the nodes.")
                 self._anticipate_clockup = True                
 
@@ -243,7 +255,7 @@ class Cluster():
         for worker_node in self._worker_nodes:        
             self._timestep_power_dissipated += worker_node.timestep_power_dissipated() # Outputs the amount of power used by machines in a timestep in kWh. 
 
-        self._timestep_carbon_consumed = float(self._carbondata[self._cditerant][2]) # Read in the carbon intensity of the grid at the timestep you are on.
+        self._timestep_carbon_consumed = float(self._get_carbon_data_row()[2]) # Read in the carbon intensity of the grid at the timestep you are on.
         self._timestep_occupancy = self.cluster_occupancy()
 
         self._energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) # Passing energy consumed and the carbon intensity per timestep

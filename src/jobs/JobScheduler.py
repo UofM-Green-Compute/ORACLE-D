@@ -49,6 +49,10 @@ class JobScheduler():
                     for _ in range(amount):
                         self._submit_target.submit_job(self._basic_job.create_job())        
 
+    def submit_job(self, job):
+        #will add temporal shifting here at a later time
+        self._cluster.submit_job(job)
+
     def update(self):
         # Jobs to be submitted while the simulation is ongoing
         # Format for regular jobs is a tuple of a dictionary of [{'VO1':jobs per X seconds, 'VO2':jobs per X seconds, [...]}, X]

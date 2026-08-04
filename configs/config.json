@@ -1,6 +1,6 @@
 {
     "Simulation" : {
-        "desired_starttime" : "2024-01-20 16:00",
+        "desired_starttime" : "2024-01-16 16:00",
         "simulation_length" : 118000,
         "timestep" : 600,
         "savings_policy" : "none",
@@ -13,9 +13,9 @@
         "DESY2.json"
     ],
     "output" : {
-        "verbosity" : "low",
+        "verbosity" : "medium",
         "debug" : false,
         "log_dir" : "logs/runs",
-        "run_label" : "GB_and_DE_DESY_std_Test"
+        "run_label" : "GB_and_DE_DESY_propCI_Test"
     }
 }
