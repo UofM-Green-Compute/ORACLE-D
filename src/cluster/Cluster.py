@@ -54,7 +54,6 @@ class Cluster():
         self._anticipate_clkdown = False
         self._anticipate_clockup = False
         self.site_id = config.get("site_id", config.get("site_id", None))
-  
         self._mission_accomplished = False # State of completion for the simulation. 
         self._worker_node_inventory = worker_node_inventory
 
@@ -118,26 +117,15 @@ class Cluster():
         occ = coresused/coresavail
         return occ
 
-    def max_forecast_next_days(self, days=30):
-        current_day = self._simulation_time.get_current_datetime().date()
-        if self._max_forecast_saved_day == current_day:
-            return self._max_forecast_saved_value
- 
-        now = self._simulation_time.get_current_datetime()
-        cutoff = now + timedelta(days=days)
- 
-        max_value = None
-        for row in self._carbondata[self._cditerant:]:
-            row_time = datetime.strptime(row[0], '%Y-%m-%dT%H:%M:%S')
-            if row_time > cutoff:
-                break
-            forecast_value = float(row[1])
-            if max_value is None or forecast_value > max_value:
-                max_value = forecast_value
- 
-        self._max_forecast_saved_value = max_value
-        self._max_forecast_saved_day = current_day
-        return max_value
+    def max_forecast_sim_length(self, days=30):
+        if self._max_forecast_saved_value is None:
+            max_value = None
+            for row in self._carbondata:
+                forecast_value = float(row[1])
+                if max_value is None or forecast_value > max_value:
+                    max_value = forecast_value
+            self._max_forecast_saved_value = max_value
+        return self._max_forecast_saved_value
 
     def _get_carbon_data_row(self, offset=0):
         index = self._cditerant + offset
@@ -151,7 +139,7 @@ class Cluster():
         return float(self._get_carbon_data_row()[1])
 
     def get_weighted_carbon_intensity(self):
-        return float(self._get_carbon_data_row()[1]) / self.max_forecast_next_days(7)
+        return float(self._get_carbon_data_row()[1]) / self.max_forecast_sim_length()
     
     def queue_length(self):
         return len(self._queued_jobs)

@@ -10,7 +10,9 @@
 from jobs.VOJobFactory import VOJobFactory, GridPPJobFactory, ATLASJobFactory, LHCbJobFactory
 
 class JobScheduler():
-
+    @property
+    def site_id(self):
+        return self._site_id
     def __init__(self, simulation_time, cluster_to_submit_job_to, initial_job_mix={'ATLAS':10,'LHCb':5},
                   regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]], site_id=None, job_router=None):
         self._simulation_time = simulation_time

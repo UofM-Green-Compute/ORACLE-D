@@ -43,7 +43,7 @@ class GlobalJobQueue:
             if destination is None:
                 raise ValueError(f"No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
             origin_site = getattr(job, "origin_site", None)
-            destination_site_id = getattr(destination, "site_id", getattr(destination, "_site_id", None))
+            destination_site_id = getattr(destination, "site_id", None)
             self._routed_counts[job.origin_site] += 1
             self._jobs_routed += 1
 

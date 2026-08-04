@@ -10,12 +10,13 @@
 
     "sites" : [
         "DESY1.json",
-        "DESY2.json"
+        "DESY2.json",
+        "DESY3.json"
     ],
     "output" : {
         "verbosity" : "medium",
         "debug" : false,
         "log_dir" : "logs/runs",
-        "run_label" : "GB_and_DE_DESY_propCI_Test"
+        "run_label" : "GB_Scot_and_DE_DESY_propCI_Test"
     }
 }

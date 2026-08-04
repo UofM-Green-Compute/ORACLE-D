@@ -20,8 +20,9 @@ class OriginSiteRouting:
         return None
 
 class ProportionalCIRouting:
-    def __init__(self):
+    def __init__(self, simulation_time=None):
         self._ci_score_store = {}
+        self._simulation_time = simulation_time
 
     def prepare(self, schedulers):
         scheduler_list = schedulers.values() if isinstance(schedulers,dict) else schedulers
@@ -31,7 +32,8 @@ class ProportionalCIRouting:
         }
         for scheduler in scheduler_list:
             site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', 'Unknown'))
-            logger.info(f"Scheduler {site_id} has weighted carbon intensity score: {self._ci_score_store[id(scheduler)]}")
+            current_time = self._simulation_time.get_current_datetime()  # <-- add this
+            logger.info(f"[{current_time}] Scheduler {site_id} has weighted carbon intensity score: {self._ci_score_store[id(scheduler)]}")
 
     def choose_scheduler(self, job, schedulers):
         if job is None or schedulers is None:
@@ -50,10 +52,10 @@ class ProportionalCIRouting:
         return chosen_site
 
 class RoutingPolicyFactory:
-    def create_routing_policy(policy_name):
+    def create_routing_policy(policy_name, simulation_time=None):
         policies = {
-            "origin_site": OriginSiteRouting,  
-            "proportional_CI": ProportionalCIRouting,
+            "origin_site": lambda: OriginSiteRouting(),
+            "proportional_CI": lambda: ProportionalCIRouting(simulation_time=simulation_time),
         }
 
         try:

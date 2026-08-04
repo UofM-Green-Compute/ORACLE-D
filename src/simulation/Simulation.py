@@ -85,7 +85,7 @@ class Simulation():
             site = self._build_site(cluster_config, index)
             self._cluster_sites.append(site)
 
-        routing_policy = RoutingPolicyFactory.create_routing_policy(self.routing_policy_name)
+        routing_policy = RoutingPolicyFactory.create_routing_policy(self.routing_policy_name, simulation_time=self._simulation_time)
         self._global_scheduler = GlobalJobQueue(routing_policy)
 
 
