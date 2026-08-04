@@ -128,10 +128,11 @@ if __name__ == '__main__':
 
         finished_sites = [site_id for site_id, sim in simulations.items() if sim.is_mission_accomplished()]
         length_exceeded = simtottime.total_seconds() >= simulation_length
-
-        for site in finished_sites:
-            for site, sim in simulations.items():
-                if site not in finished_sites:
+        for site_id in finished_sites:
+            simulations[site_id].finish(simtottime.total_seconds())
+        if length_exceeded:
+            for site_id, sim in simulations.items():
+                if site_id not in finished_sites:
                     sim.finish(simtottime.total_seconds())
             break
         if len(finished_sites)==len(simulations):

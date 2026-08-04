@@ -44,6 +44,7 @@ class DataLogger():
         # verbosity
         self._verbosity = config["output"]["verbosity"]
         self._run_dir = config["output"].get("run_dir", "logs")
+        self._site_id = config.get("cluster_id") or config.get("site_id")
         self._simulation_parameters = {}
 
 
@@ -129,8 +130,13 @@ class DataLogger():
         print(f'')
         
         if summary_file == True:
-            summary_path = os.path.join(self._run_dir, 'summary.txt')
-            with open(summary_path, 'a') as outfile:
+            os.makedirs(self._run_dir, exist_ok=True)
+            site_label = self._site_id.lower() if self._site_id else 'site'
+            site_run_dir = os.path.join(self._run_dir, site_label)
+            os.makedirs(site_run_dir, exist_ok=True)
+
+            summary_path = os.path.join(site_run_dir, 'summary.txt')
+            with open(summary_path, 'w') as outfile:
                 outfile.write(f'========\n')
                 outfile.write(f'Summary\n')
                 outfile.write(f'========\n')
@@ -138,11 +144,8 @@ class DataLogger():
                 outfile.write(f'Total Simulated-time Duration      : {total_simulated_time/3600:4.1f} hours\n')
                 outfile.write(f'Total Real-time Duration           : {total_real_time/60:4.1f} minutes\n')
                 outfile.write(f'\n')                
-                #outfile.write(f'Submitted: {self._jobs_submitted}\n')
                 outfile.write(f'Jobs Started                       : {self._jobs_started}\n')
                 outfile.write(f'Jobs Finished                      : {self._jobs_finished}\n')
-                #outfile.write(f'Failed:    {self._jobs_failed}\n')
-                #outfile.write(f'Aborted:   {self._jobs_aborted}\n')
                 outfile.write(f'\n')
                 outfile.write(f'Total CPU duration                 : {self._cumulative_cpu_time/3600:6.1f} hours\n')
                 outfile.write(f'Average CPU duration               : {(self._cumulative_cpu_time/3600) / self._jobs_total_cores_used:4.2f} hours\n')
@@ -158,7 +161,7 @@ class DataLogger():
                 outfile.write(f'Peaktime CO2e emissions percentage : {self._peaktime_carbon_consumed/self._total_carbon_consumed*100:.3f} %\n')      
                 outfile.write(f'\n')
 
-            summary_json_path = os.path.join(self._run_dir, 'summary.json')
+            summary_json_path = os.path.join(site_run_dir, 'summary.json')
             with open(summary_json_path, 'w') as outfile:
                 json.dump(summary, outfile, indent=4)
                 outfile.write('\n')

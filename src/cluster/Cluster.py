@@ -6,9 +6,6 @@
 # For full detailed and legal infomration please read the LICENSE and NOTICE
 #    files in the main directory 
 # ===========================================================================
-
-import sys
-
 from cluster.WorkerNode import *
 from util import Logging
 from datalogger.DataLogger import DataLogger

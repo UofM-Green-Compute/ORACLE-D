@@ -33,7 +33,7 @@ class Simulation():
         # Finds the half-hour time segment to which the start of the simulation belongs and the one after the end time.
         self._simulation_starting_segment = self._simulation_time.find_hh_segment(self._simulation_time._time)
         self._simulation_maxfinal_segment = self._simulation_time.find_hh_segment(self._simulation_time._time + timedelta(seconds=self._simulation_length), 'next')
-
+        self._jobdescript = config["output"].get("run_label", f"Simulation-{self.site_id}-{self._simulation_time.get_start_datetime().strftime('%Y%m%d-%H%M%S')}")
         self._verbosity = config["output"]["verbosity"]
 
         print('Setting up simulation.')
@@ -90,7 +90,7 @@ class Simulation():
                                 self._simulation_time,
                                 inventory,
                                 self._CIntendata,
-                                config["Simulation"]["savings_policy"],
+                                config["savings_policy"],
                                 self.CIThresholdValue) # Starting DESY
 
 
@@ -103,7 +103,13 @@ class Simulation():
         print('CIThresholdValue: ' + str(self.CIThresholdValue))
         
         # Class to record statistics
-        self._datalogger = DataLogger(config)
+        output_cfg = dict(config.get("output", {}))
+        base_run_dir = output_cfg.get("run_dir") or os.path.join(os.getcwd(), "logs")
+        if not os.path.isabs(base_run_dir):
+            base_run_dir = os.path.join(os.getcwd(), base_run_dir)
+        site_output_cfg = dict(output_cfg)
+        site_output_cfg["run_dir"] = os.path.join(base_run_dir, self.site_id.lower())
+        self._datalogger = DataLogger({**config, "cluster_id": self.site_id, "site_id": self.site_id, "output": site_output_cfg})
         self._cluster.set_datalogger_handlers(self._datalogger.job_submit, 
                                               self._datalogger.job_start, 
                                               self._datalogger.job_finish,
@@ -145,6 +151,7 @@ class Simulation():
     def _write_simulation_parameters(self, simulation_parameters):
         run_dir = self._datalogger._run_dir
         if run_dir:
+            os.makedirs(run_dir, exist_ok=True)
             with open(os.path.join(run_dir, 'parameters.txt'), 'w') as outfile:
                 outfile.write(simulation_parameters)
                 outfile.write('\n')
@@ -245,7 +252,7 @@ class Simulation():
 
     def finish(self, simtottime_seconds):
         realtottime_seconds = (datetime.now() - self._simulation_time.get_origin_datetime()).total_seconds()
-        self._datalogger.print_summary(True, self._jobdescript, simtottime_seconds.total_seconds(), self._simulation_time.get_timestep(), realtottime_seconds)                  
+        self._datalogger.print_summary(True, self._jobdescript, simtottime_seconds, self._simulation_time.get_timestep(), realtottime_seconds)                  
         if self._verbosity in ["medium", "high"]:
             logger.info(f'Site {self.site_id}: No more jobs!')
             logger.info(f'Ending {self.site_id} simulation at {self._simulation_time.get_current_datetime()}')
