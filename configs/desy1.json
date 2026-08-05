@@ -1,5 +1,5 @@
 {
-  "site_id": "DESY1",
+  "site_id": "DESY-RAL",
 
   "cluster": {
     "cluster_name": "DEFAULT",
@@ -10,7 +10,7 @@
 
   "carbon_intensity": {
     "folder": "data/carbon_intensity/",
-    "filename": "de_carbon_Intensity_2024_15min.csv",
+    "filename": "southern_england_intensity.csv",
     "high_CI_threshold": 400
   },
 

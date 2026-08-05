@@ -56,6 +56,7 @@ class Cluster():
         self.site_id = config.get("site_id", config.get("site_id", None))
         self._mission_accomplished = False # State of completion for the simulation. 
         self._worker_node_inventory = worker_node_inventory
+        self._carbon_stats = None
 
         self._verbosity = config["output"]["verbosity"]
 		
@@ -117,16 +118,12 @@ class Cluster():
         occ = coresused/coresavail
         return occ
 
-    def max_forecast_sim_length(self, days=30):
-        if self._max_forecast_saved_value is None:
-            max_value = None
-            for row in self._carbondata:
-                forecast_value = float(row[1])
-                if max_value is None or forecast_value > max_value:
-                    max_value = forecast_value
-            self._max_forecast_saved_value = max_value
-        return self._max_forecast_saved_value
-
+    def carbon_stats(self):
+        if self._carbon_stats is None:
+            values = [float(row[1]) for row in self._carbondata]
+            self._carbon_stats = (min(values), max(values))
+        return self._carbon_stats
+    
     def _get_carbon_data_row(self, offset=0):
         index = self._cditerant + offset
         if index < 0:
@@ -139,7 +136,11 @@ class Cluster():
         return float(self._get_carbon_data_row()[1])
 
     def get_weighted_carbon_intensity(self):
-        return float(self._get_carbon_data_row()[1]) / self.max_forecast_sim_length()
+        current =self.get_current_carbon_intensity()
+        minimum, maximum = self.carbon_stats()
+        if maximum == minimum:
+            return 0.0 
+        return (current - minimum) / (maximum - minimum)
     
     def queue_length(self):
         return len(self._queued_jobs)
@@ -167,8 +168,6 @@ class Cluster():
             
         ### Queues ###
         remaining_jobs = []
-
-        # Try to start queued jobs
         for pending_job in self._queued_jobs:
             # Try to fill nodes in order
             for worker_node in self._worker_nodes:
@@ -179,8 +178,14 @@ class Cluster():
             # If we failed to allocate job to node
             if pending_job is not None:
                 remaining_jobs.append(pending_job)
-        
         self._queued_jobs = remaining_jobs
+
+                # Compares the simulation time wrt the time in the hh segment and moves a pointer to the correct hh segment carbon usage.
+        while self._cditerant + 1 < len(self._carbondata):
+            next_timestamp = datetime.strptime(self._get_carbon_data_row(1)[0], '%Y-%m-%dT%H:%M:%S')
+            if self._simulation_time.get_current_datetime() <= next_timestamp:
+                break
+            self._cditerant += 1
 
         # ---------------------------------
         #    Termination Check
@@ -193,12 +198,7 @@ class Cluster():
         # ---------------------------------
         #    Energy Saving Try Section
         # ---------------------------------
-        # Compares the simulation time wrt the time in the hh segment and moves a pointer to the correct hh segment carbon usage.
-        while self._cditerant + 1 < len(self._carbondata):
-            next_timestamp = datetime.strptime(self._get_carbon_data_row(1)[0], '%Y-%m-%dT%H:%M:%S')
-            if self._simulation_time.get_current_datetime() <= next_timestamp:
-                break
-            self._cditerant += 1
+
         # Code to clock down nodes between 5pm and 9pm everyday  
         if 'cd1721' in self._energy_saving_try:             
             if self._simulation_time.get_current_datetime().strftime('%H:%M') in ('17:00','17:01','17:02','17:03','17:04','17:05','17:06','17:07','17:08', '17:09'):
