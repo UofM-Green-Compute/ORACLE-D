@@ -88,11 +88,9 @@ class Simulation():
         routing_policy = RoutingPolicyFactory.create_routing_policy(self.routing_policy_name, simulation_time=self._simulation_time)
         self._global_scheduler = GlobalJobQueue(routing_policy)
 
-
         for site, cluster_config in zip(self._cluster_sites, cluster_configs):
             self._attach_job_scheduler(site, cluster_config)
         self._global_scheduler.set_local_schedulers({site.site_id: site.job_scheduler for site in self._cluster_sites})
-
         self._global_scheduler.update()
 
         if self._verbosity in ["low", "medium", "high"]:
@@ -221,11 +219,13 @@ class Simulation():
         )
 
     def _attach_job_scheduler(self, site, cluster_config):
+        temporal_policy = cluster_config.get("temporal_shifting",{}).get("policy", "none")
         if cluster_config["jobs"]["regular_incoming_mix"] == {}:
             jobs_refill = None
         else:
             jobs_refill = [[cluster_config["jobs"]["regular_incoming_mix"], cluster_config["jobs"]["incoming_timestep"]]]
-        job_scheduler = JobScheduler(self._simulation_time, site.cluster, cluster_config["jobs"]["initial_mix"],jobs_refill,site_id=site.site_id, job_router=self._global_scheduler)
+        job_scheduler = JobScheduler(self._simulation_time, site.cluster, cluster_config["jobs"]["initial_mix"],jobs_refill,
+                                     site_id=site.site_id, job_router=self._global_scheduler, temporal_shifting=temporal_policy)
         jobs_summary = ''
         for vo, jobs in job_scheduler._initial_job_mix.items():
             jobs_summary += f'{vo}: {jobs} '
@@ -244,7 +244,6 @@ class Simulation():
         simtottime = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime()
         realtottime = datetime.now() - self._simulation_time.get_origin_datetime()
         return simtottime.total_seconds(), realtottime.total_seconds()
-
 
     def _finalise(self, reason):
         if self._finished:
@@ -342,7 +341,6 @@ class Simulation():
             with open(os.path.join(run_dir, 'parameters.txt'), 'w') as outfile:
                 outfile.write(simulation_parameters)
                 outfile.write('\n')
-
 
     def _get_simulation_parameters(self, site, cluster_config):
         cluster_inventory = {}

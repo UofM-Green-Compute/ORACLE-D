@@ -1,5 +1,5 @@
 {
-  "site_id": "DESY GB",
+  "site_id": "DESY",
 
   "cluster": {
     "cluster_name": "DEFAULT",
@@ -10,7 +10,7 @@
 
   "carbon_intensity": {
     "folder": "data/carbon_intensity/",
-    "filename": "gb_carbon_intensity.csv",
+    "filename": "de_carbon_Intensity_2024_15min.csv",
     "high_CI_threshold": 300
   },
 
@@ -22,5 +22,9 @@
     "incoming_timestep": 3600
   },
 
-  "savings_policy": "none"
+  "savings_policy": "none",
+
+  "temporal_shifting": {
+    "policy": "SubmitImmediately"
+  }
 }

@@ -8,21 +8,26 @@
 # ===========================================================================
 
 from jobs.VOJobFactory import VOJobFactory, GridPPJobFactory, ATLASJobFactory, LHCbJobFactory
+from jobs.TemporalShifting import SubmitImmediately, SustainableQueue
 
 class JobScheduler():
     @property
     def site_id(self):
         return self._site_id
+    
     def __init__(self, simulation_time, cluster_to_submit_job_to, initial_job_mix={'ATLAS':10,'LHCb':5},
-                  regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]], site_id=None, job_router=None):
+                  regular_incoming_jobs=[[{'ATLAS':1,'LHCb':2},3600]], site_id=None, job_router=None, temporal_shifting='none'):
         self._simulation_time = simulation_time
         self._cluster = cluster_to_submit_job_to
         self._site_id = site_id
-
+        
         self._submit_target = job_router if job_router is not None else self._cluster
         # Load in the job mixed
         self._initial_job_mix = initial_job_mix
         self._regular_incoming_jobs = regular_incoming_jobs
+
+        self._temporal_shifting = temporal_shifting
+        self._temporal_shifting = self._build_temporal_shifting(temporal_shifting)
 
         # Create the job factories
         self._basic_job     = VOJobFactory('VO-Basic-', origin_site=self._site_id)
@@ -34,6 +39,11 @@ class JobScheduler():
         self._atlas_hourly  = ATLASJobFactory('ATLAS-Hourly-', origin_site=self._site_id)
         self._lhcb_hourly   = LHCbJobFactory('LHCb-Hourly-', origin_site=self._site_id)
 
+
+        if temporal_shifting:
+            self._sustainable_queue = SustainableQueue(config={site_id: self._site_id}, carbon_intensity_data=cluster_to_submit_job_to._carbondata)
+        else:
+            self._sustainable_queue = None
         # Seed the cluster with initial jobs
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}
         if self._initial_job_mix != None:
@@ -51,16 +61,32 @@ class JobScheduler():
                     for _ in range(amount):
                         self._submit_target.submit_job(self._basic_job.create_job())        
 
+    def _build_temporal_shifting(self, policy):
+        config = {'site_id': self._site_id}
+        if policy == 'sustainable_queue':
+            return SustainableQueue(config, self._cluster._carbondata)
+        else:
+            return SubmitImmediately()
+        
     def submit_job(self, job):
-        #will add temporal shifting here at a later time
-        self._cluster.submit_job(job)
+        current_time = self._simulation_time.get_current_datetime()
+        self._temporal_shifting.submit_job(job, current_time)
+        if isinstance(self._temporal_shifting, SubmitImmediately):
+            self._cluster.submit_job(job)
 
+    def get_carbon_intensity(self):
+        return self._cluster.get_current_carbon_intensity()
+    
     def get_weighted_carbon_intensity(self):
         return self._cluster.get_weighted_carbon_intensity()
 
     def update(self):
         # Jobs to be submitted while the simulation is ongoing
         # Format for regular jobs is a tuple of a dictionary of [{'VO1':jobs per X seconds, 'VO2':jobs per X seconds, [...]}, X]
+        current_time = self._simulation_time.get_current_datetime()
+        current_CI = self._cluster.get_current_carbon_intensity()
+        self._temporal_shifting.update(current_time, current_CI, submit_target=self._submit_target)
+
         if self._regular_incoming_jobs != None:
             for list in self._regular_incoming_jobs:
                 if len(list) != 2:
