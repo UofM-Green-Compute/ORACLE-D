@@ -242,7 +242,6 @@ class Cluster():
         # --------------------------------------------------------
         for worker_node in self._worker_nodes:        
             self._timestep_power_dissipated += worker_node.timestep_power_dissipated() # Outputs the amount of power used by machines in a timestep in kWh. 
-
         self._timestep_carbon_consumed = float(self._get_carbon_data_row()[2]) # Read in the carbon intensity of the grid at the timestep you are on.
         self._timestep_occupancy = self.cluster_occupancy()
 

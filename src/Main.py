@@ -82,6 +82,7 @@ if __name__ == '__main__':
             "carbon_intensity": site["carbon_intensity"],
             "jobs": site["jobs"],
             "savings_policy": site.get("savings_policy", config["Simulation"].get("savings_policy", "none")),
+            "temporal_shifting": site.get("temporal_shifting", config["Simulation"].get("temporal_shifting", {"policy": "none"}))
         })
     baseline_config, baseline_cluster_configs = Simulation.baseline_config(config, cluster_configs, run_dir)
 

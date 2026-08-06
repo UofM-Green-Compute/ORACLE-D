@@ -9,14 +9,12 @@
     },
 
     "sites" : [
-        "DESY1.json",
-        "DESY2.json",
-        "DESY3.json"
+        "DESY2.json"
     ],
     "output" : {
-        "verbosity" : "medium",
+        "verbosity" : "high",
         "debug" : false,
         "log_dir" : "logs/runs",
-        "run_label" : "RAL_Scot_DESY_susqueue_test"
+        "run_label" : "DESY_SustainableQueue_Test"
     }
 }

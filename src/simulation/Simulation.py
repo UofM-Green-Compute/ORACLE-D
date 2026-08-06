@@ -17,6 +17,7 @@ from cluster.Cluster import Cluster
 from cluster.ClusterLoader import load_cluster_inventory
 from datalogger.DataLogger import DataLogger
 from jobs.JobScheduler import JobScheduler
+from jobs.TemporalShifting import TemporalShiftingFactory
 from globalqueue.GlobalJobQueue import GlobalJobQueue
 from simulation.Time import SimulationTime
 from util import Logging
@@ -55,7 +56,8 @@ class Simulation():
         baseline_config["output"]["verbosity"] = "low"
         baseline_config["Simulation"]["routing"] = {"policy": "origin_site"}
 
-        baseline_cluster_configs = [{**cluster_config, "savings_policy": "none"} for cluster_config in cluster_configs]
+        baseline_cluster_configs = [{**cluster_config, "savings_policy": "none", "temporal_shifting": {"policy": "none"}}
+                                     for cluster_config in cluster_configs]
         return baseline_config, baseline_cluster_configs
 
     def __init__(self, config, cluster_configs, simulation_time=None):
@@ -219,13 +221,21 @@ class Simulation():
         )
 
     def _attach_job_scheduler(self, site, cluster_config):
-        temporal_policy = cluster_config.get("temporal_shifting",{}).get("policy", "none")
         if cluster_config["jobs"]["regular_incoming_mix"] == {}:
             jobs_refill = None
         else:
             jobs_refill = [[cluster_config["jobs"]["regular_incoming_mix"], cluster_config["jobs"]["incoming_timestep"]]]
+
+        temporal_shifting_cfg = cluster_config.get("temporal_shifting", {})
+        temporal_policy_name = temporal_shifting_cfg.get("policy", "none")
+        temporal_policy = TemporalShiftingFactory.create_temporal_policy(
+            policy_name=temporal_policy_name,
+            site_id=site.site_id,
+            carbon_intensity_data=site.cluster._carbondata,
+        )
+
         job_scheduler = JobScheduler(self._simulation_time, site.cluster, cluster_config["jobs"]["initial_mix"],jobs_refill,
-                                     site_id=site.site_id, job_router=self._global_scheduler, temporal_shifting=temporal_policy)
+                                     site_id=site.site_id, job_router=self._global_scheduler, temporal_shifter=temporal_policy)
         jobs_summary = ''
         for vo, jobs in job_scheduler._initial_job_mix.items():
             jobs_summary += f'{vo}: {jobs} '
@@ -253,14 +263,27 @@ class Simulation():
         self._finish_reason = reason
         sim_seconds, real_seconds = self._get_finish_context()
         self._final_sim_seconds = sim_seconds
+        logger.info
         for site in self._cluster_sites:
             site.data_logger.print_summary(True, self._jobdescript, site.finish_sim_seconds, self._simulation_time.get_timestep(), 
                                            real_seconds, print_console = False)
+            logger.info(f"Site {site.site_id} total jobs generated: {site.job_scheduler._total_jobs_generated}, ")
+            dl = site.data_logger
+            logger.info(f"Site {site.site_id} raw stats — "
+                        f"energy: {dl._total_energy_consumed}, "
+                        f"cpu_time: {dl._cumulative_cpu_time}, "
+                        f"jobs_finished: {dl._jobs_finished}")
         self._global_logger = self._build_global_datalogger()
         self._global_logger.print_summary(True, self._jobdescript, sim_seconds,
                                      self._simulation_time.get_timestep(), real_seconds,
                                      summary_dir=self._run_dir, print_console = True)
         self._global_scheduler.write_summary(self._run_dir)
+        logger.info(f"Finish reason: {reason}")
+        for site in self._cluster_sites:
+            shifter=site.job_scheduler._temporal_shifter
+            logger.info(f'Site {site.site_id} temporal shifter: {type(shifter).__name__} has summary:{hasattr(shifter, "write_summary")}')
+            if hasattr(shifter, 'write_summary'):
+                shifter.write_summary(site.run_dir, site_id=site.site_id)
         if reason == 'no_jobs':
             if self._verbosity in ["medium", "high"]:
                 logger.info(f'No more jobs across all clusters!')
@@ -314,7 +337,8 @@ class Simulation():
             site.cluster.update()
             # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
             if site.cluster._mission_accomplished:
-                if not self._global_scheduler.has_jobs() and not self.future_jobs_expected():
+                if (not self._global_scheduler.has_jobs() and not self.future_jobs_expected() and
+                   not site.job_scheduler._temporal_shifter.held_jobs>0):
                     site.finished = True
                     site.finish_reason = 'no_jobs'
                     site.finish_sim_seconds = simtottime.total_seconds()
