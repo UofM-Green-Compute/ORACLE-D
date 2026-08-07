@@ -265,9 +265,12 @@ class Simulation():
         self._final_sim_seconds = sim_seconds
         logger.info
         for site in self._cluster_sites:
+            site.data_logger.set_jobs_generated(site.job_scheduler._total_jobs_generated)
             site.data_logger.print_summary(True, self._jobdescript, site.finish_sim_seconds, self._simulation_time.get_timestep(), 
                                            real_seconds, print_console = False)
+
             logger.info(f"Site {site.site_id} total jobs generated: {site.job_scheduler._total_jobs_generated}, ")
+            print(f"Site {site.site_id} total jobs generated: {site.job_scheduler._total_jobs_generated}, ")
             dl = site.data_logger
             logger.info(f"Site {site.site_id} raw stats — "
                         f"energy: {dl._total_energy_consumed}, "
@@ -303,6 +306,7 @@ class Simulation():
 
         dataloggers = [site.data_logger for site in self._cluster_sites]
         global_logger._jobs_submitted = sum(datalogger._jobs_submitted for datalogger in dataloggers)
+        global_logger._jobs_generated = sum(datalogger._jobs_generated for datalogger in dataloggers)
         global_logger._jobs_started = sum(datalogger._jobs_started for datalogger in dataloggers)
         global_logger._jobs_finished = sum(datalogger._jobs_finished for datalogger in dataloggers)
         global_logger._jobs_failed = sum(datalogger._jobs_failed for datalogger in dataloggers)

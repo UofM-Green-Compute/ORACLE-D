@@ -17,6 +17,7 @@ class Job():
         self._duration = duration
         self.memory_req = memory_req # In GB-per-core.
         self.cores_req = cores_req
+        self._submit_time = None
         self._start_time = None
         self._end_time = None
         self.origin_site = origin_site
@@ -32,6 +33,10 @@ class Job():
     @property
     def duration(self):
         return self._duration
+
+    @property
+    def submit_time(self):
+        return self._submit_time 
     
     @property
     def start_time(self):
@@ -49,6 +54,10 @@ class Job():
         self._duration = value
         if self._start_time is not None:
             self._end_time = self._start_time + datetime.timedelta(seconds = self.duration)
+
+    @submit_time.setter
+    def submit_time(self, value):
+        self._submit_time = value
 
     @start_time.setter
     def start_time(self, value):

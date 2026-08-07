@@ -18,13 +18,13 @@
     "initial_mix": {
       "GridPP": 10000
     },
-    "regular_incoming_mix": {"GridPP": 1000},
+    "regular_incoming_mix": {"GridPP": 3000},
     "incoming_timestep": 3600
   },
 
   "savings_policy": "none",
 
   "temporal_shifting": {
-    "policy": "SubmitImmediately"
+    "policy": "sustainable_queue"
   }
 }

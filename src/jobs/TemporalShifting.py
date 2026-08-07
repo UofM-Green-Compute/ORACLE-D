@@ -1,6 +1,8 @@
 import numpy as np
 import os
 from util import Logging
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 logger = Logging.get_logger()
 
@@ -23,6 +25,7 @@ class SustainableQueue:
         self._mid_wait_hours = 12
         self._short_wait_hours = 6
         self._waiting_line = []
+        self._history = []
         self._released_jobs = 0
         self._release_counts = {
             'Deadline Forced':        0,
@@ -61,6 +64,7 @@ class SustainableQueue:
         self._waiting_line.append({'time_arrived': current_time, 'job': job, 'release_target': release_target})
 
     def update(self, current_time, current_CI, submit_target=None):
+        self._history.append({'time': current_time, 'ci': current_CI, 'held': len(self._waiting_line)})
         release_now = []
         wait_longer = []
 
@@ -139,6 +143,44 @@ class SustainableQueue:
 
         for line in lines:
             logger.info(line)
+
+        if not self._history:
+            return
+
+        timestamps = [h['time'] for h in self._history]
+        ci_values  = [h['ci']   for h in self._history]
+        queue_lens = [h['held'] for h in self._history]
+
+        fig, ax1 = plt.subplots(figsize=(12, 5))
+
+        ax1.set_xlabel('Simulation time')
+        ax1.set_ylabel('Carbon intensity (gCO₂/kWh)', color='tab:orange')
+        ax1.plot(timestamps, ci_values, color='tab:orange', linewidth=1.2, label='Carbon intensity')
+        ax1.tick_params(axis='y', labelcolor='tab:orange')
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M'))
+        ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
+
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('Jobs held in queue', color='tab:blue')
+        ax2.fill_between(timestamps, queue_lens, alpha=0.25, color='tab:blue')
+        ax2.plot(timestamps, queue_lens, color='tab:blue', linewidth=1.0, label='Queue length')
+        ax2.tick_params(axis='y', labelcolor='tab:blue')
+
+        # CI threshold lines
+        ax1.axhline(self._low_ci,  color='tab:green',  linestyle='--', linewidth=0.8, label=f'Low CI ({self._low_ci:.0f})')
+        ax1.axhline(self._mid_ci,  color='tab:olive',  linestyle='--', linewidth=0.8, label=f'Mid CI ({self._mid_ci:.0f})')
+        ax1.axhline(self._high_ci, color='tab:red',    linestyle='--', linewidth=0.8, label=f'High CI ({self._high_ci:.0f})')
+
+        lines_a, labels_a = ax1.get_legend_handles_labels()
+        lines_b, labels_b = ax2.get_legend_handles_labels()
+        ax1.legend(lines_a + lines_b, labels_a + labels_b, loc='upper right', fontsize=8)
+
+        fig.suptitle(f'Temporal shifting — {site_id or "unknown"}', fontsize=11)
+        fig.autofmt_xdate()
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, 'temporal_shifting.png'), dpi=150)
+        plt.close(fig)
+        logger.info(f'Temporal shifting plot saved to {output_dir}/temporal_shifting.png')
 
 class TemporalShiftingFactory:
     def create_temporal_policy(policy_name, site_id=None, carbon_intensity_data=None):

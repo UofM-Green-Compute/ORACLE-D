@@ -8,9 +8,11 @@
 # ===========================================================================
 
 from util import Logging
-import json
+
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 logger = Logging.get_logger()
 
@@ -21,6 +23,7 @@ class DataLogger():
 
     def __init__(self, config): 
         self._jobs_submitted = 0
+        self._jobs_generated = 0
         self._jobs_started = 0
         self._jobs_finished = 0
         self._jobs_failed = 0
@@ -54,8 +57,11 @@ class DataLogger():
     def set_simulation_parameters(self, simulation_parameters):
         self._simulation_parameters = simulation_parameters
 
+    def set_jobs_generated(self, jobs_generated):
+        self._jobs_generated = jobs_generated
 
     def job_submit(self, job):
+        self._jobs_submitted += 1
         pass
 
 
@@ -117,10 +123,11 @@ class DataLogger():
                     outfile.write(f'{line}\n')
                 outfile.write(f'\n')
 
-            summary_json_path = os.path.join(output_dir, 'summary.json')
-            with open(summary_json_path, 'w') as outfile:
-                json.dump(summary, outfile, indent=4)
-                outfile.write('\n')
+            # summary_json_path = os.path.join(output_dir, 'summary.json')
+            # with open(summary_json_path, 'w') as outfile:
+            #     json.dump(summary, outfile, indent=4)
+            #     outfile.write('\n')
+
 
     def comparison(self, baseline_logger, run_seed, actual_duration_s, baseline_duration_s):
         percentage_of_baseline_jobs_completed = self._safe_divide(self._jobs_finished, baseline_logger._jobs_finished) * 100
@@ -167,6 +174,83 @@ class DataLogger():
             f'CPU time per job difference vs baseline: {comparison["cpu_time_per_job_difference"]/3600:.2f} hours',
         ]
         self._emit_summary_lines(comparison_summary, print_console=print_console)
+        self._plot_comparison(comparison, run_dir)
+
+    def _plot_comparison(self, comparison, run_dir):
+        fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+        fig.suptitle('Green scheduling vs baseline comparison', fontsize=13, fontweight='bold')
+        bar_width = 0.25
+        x = np.array([0])
+
+        # ── Carbon ──────────────────────────────────────────────────────────────
+        ax = axes[0]
+        actual_carbon   = comparison["actual_total_carbon_g"] / 1e3
+        baseline_carbon = comparison["baseline_total_carbon_g"] / 1e3
+        bars_a = ax.bar(x - bar_width/2, baseline_carbon, bar_width,
+                        label='Baseline', color='#888780')
+        bars_b = ax.bar(x + bar_width/2, actual_carbon,   bar_width,
+                        label='Actual',   color='#1D9E75')
+        ax.set_title('Carbon consumed')
+        ax.set_ylabel('kg CO₂e')
+        ax.set_xticks([])
+        ax.legend(fontsize=8)
+        saved_carbon = baseline_carbon - actual_carbon
+        colour = '#1D9E75' if saved_carbon >= 0 else '#D85A30'
+        ax.annotate(f'{"Saved" if saved_carbon >= 0 else "Extra"}: {abs(saved_carbon):.3f} kg',
+                    xy=(0.5, 0.97), xycoords='axes fraction',
+                    ha='center', va='top', fontsize=8,
+                    color=colour)
+
+        # ── Energy ──────────────────────────────────────────────────────────────
+        ax = axes[1]
+        actual_energy   = comparison["actual_total_energy_consumed"]
+        baseline_energy = comparison["baseline_total_energy_consumed"]
+        ax.bar(x - bar_width/2, baseline_energy, bar_width,
+            label='Baseline', color='#888780')
+        ax.bar(x + bar_width/2, actual_energy,   bar_width,
+            label='Actual',   color='#378ADD')
+        ax.set_title('Energy consumed')
+        ax.set_ylabel('kWh')
+        ax.set_xticks([])
+        ax.legend(fontsize=8)
+        saved_energy = baseline_energy - actual_energy
+        colour = '#1D9E75' if saved_energy >= 0 else '#D85A30'
+        ax.annotate(f'{"Saved" if saved_energy >= 0 else "Extra"}: {abs(saved_energy):.3f} kWh',
+                    xy=(0.5, 0.97), xycoords='axes fraction',
+                    ha='center', va='top', fontsize=8,
+                    color=colour)
+
+        # ── CPU time per job ────────────────────────────────────────────────────
+        ax = axes[2]
+        actual_cpu   = comparison["actual_cpu_time_per_job"]   / 3600
+        baseline_cpu = comparison["baseline_cpu_time_per_job"] / 3600
+        ax.bar(x - bar_width/2, baseline_cpu, bar_width,
+            label='Baseline', color='#888780')
+        ax.bar(x + bar_width/2, actual_cpu,   bar_width,
+            label='Actual',   color='#EF9F27')
+        ax.set_title('CPU time per job')
+        ax.set_ylabel('hours')
+        ax.set_xticks([])
+        ax.legend(fontsize=8)
+        diff_cpu = actual_cpu - baseline_cpu
+        colour = '#1D9E75' if diff_cpu <= 0 else '#D85A30'
+        ax.annotate(f'{"Less" if diff_cpu <= 0 else "More"}: {abs(diff_cpu):.2f} h/job',
+                    xy=(0.5, 0.97), xycoords='axes fraction',
+                    ha='center', va='top', fontsize=8,
+                    color=colour)
+
+        # ── Jobs completed footer ───────────────────────────────────────────────
+        pct = comparison["percentage_of_baseline_jobs_completed"]
+        colour = '#1D9E75' if pct >= 100 else '#D85A30'
+        fig.text(0.5, 0.01,
+                f'Jobs completed vs baseline: {pct:.1f}%',
+                ha='center', fontsize=9, color=colour)
+
+        plt.tight_layout(rect=[0, 0.04, 1, 1])
+        plot_path = os.path.join(run_dir, 'comparison_plot.png')
+        plt.savefig(plot_path, dpi=150)
+        plt.close(fig)
+        logger.info(f'Comparison plot saved to {plot_path}')
 
     def _format_comparison_lines(self, comparison):
         return [
@@ -184,14 +268,17 @@ class DataLogger():
         f'Baseline run duration          : {comparison["baseline_duration_seconds"]/3600:.2f} hours',
         f'Time difference (actual - base): {comparison["time_difference_seconds"]/3600:.2f} hours',
         f'',
-        f'Actual total energy consumed   : {comparison["energy_saved_kwh"]:.3f} kWh',
+        f'Actual total energy consumed   : {comparison["actual_total_energy_consumed"]:.3f} kWh',
         f'Baseline total energy consumed: {comparison["baseline_total_energy_consumed"]:.3f} kWh',
         f'Energy saved                    : {comparison["energy_saved_kwh"]:.3f} kWh',
         f'',
-        f'Actual cumulative CPU time      : {comparison["cpu_time_difference"]/3600:.2f} hours',
+        f'Actual cumulative CPU time      : {comparison["actual_cumulative_cpu_time"]/3600:.2f} hours',
         f'Baseline cumulative CPU time    : {comparison["baseline_cumulative_cpu_time"]/3600:.2f} hours',
         f'CPU time difference            : {comparison["cpu_time_difference"]/3600:.2f} hours',
-        '',
+
+        f'CPU time per job (actual)        : {comparison["actual_cpu_time_per_job"]/3600:.2f} hours',
+        f'CPU time per job (baseline)      : {comparison["baseline_cpu_time_per_job"]/3600:.2f} hours',
+        f'CPU time per job difference      : {comparison["cpu_time_per_job_difference"]/3600:.2f} hours'        '',
         ]
         
 
@@ -246,6 +333,7 @@ class DataLogger():
             f'Total Simulated-time Duration      : {total_simulated_time/3600:4.1f} hours',
             f'Total Real-time Duration           : {total_real_time/60:4.1f} minutes',
             f'',
+            f'Jobs Generated                     : {self._jobs_generated}',
             f'Jobs Started                       : {self._jobs_started}',
             f'Jobs Finished                      : {self._jobs_finished}',
             f'',
