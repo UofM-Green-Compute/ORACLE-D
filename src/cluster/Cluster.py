@@ -43,6 +43,7 @@ class Cluster():
         self._energy_and_carbon_consumed_handler = None
         self._peaktime_energy_and_carbon_consumed_handler = None
         self._occupancy_handler = None
+        self._site_metrics_handler = None
         
         self._carbondata = C_Intensity_data
         self._energy_saving_try = esgimmick
@@ -70,11 +71,12 @@ class Cluster():
             logger.info(f'Created cluster with {self.get_number_of_nodes()} worker nodes and {self.get_number_of_cores()} cores')
 
 
-    def set_datalogger_handlers(self, job_submitted, job_started, job_finished, energy_and_carbon_consumed, peaktime_energy_and_carbon_consumed, occupancy):
+    def set_datalogger_handlers(self, job_submitted, job_started, job_finished, energy_and_carbon_consumed, peaktime_energy_and_carbon_consumed, occupancy, site_metrics=None):
         self._job_submitted_handler = job_submitted
         self._energy_and_carbon_consumed_handler = energy_and_carbon_consumed
         self._peaktime_energy_and_carbon_consumed_handler = peaktime_energy_and_carbon_consumed
         self._occupancy_handler = occupancy
+        self._site_metrics_handler = site_metrics
 
 
         for worker_node in self._worker_nodes:
@@ -96,17 +98,14 @@ class Cluster():
         self._queued_jobs.append(job)
         self._job_submitted_handler(job)
 
-
     def has_queued_jobs(self):
         return len(self._queued_jobs) > 0
-
 
     def has_running_jobs(self):
         for worker_node in self._worker_nodes:
             if worker_node.busy_cores > 0:
                 return True
         return False
-    
 
     def cluster_occupancy(self):
         occ = 0
@@ -115,7 +114,7 @@ class Cluster():
         for node in self._worker_nodes:
             coresavail += node.number_of_cores
             coresused += node.busy_cores
-        occ = coresused/coresavail
+        occ = coresused/coresavail if coresavail > 0 else 0
         return occ
 
     def carbon_stats(self):
@@ -247,6 +246,8 @@ class Cluster():
 
         self._energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) # Passing energy consumed and the carbon intensity per timestep
         self._occupancy_handler(self._timestep_occupancy)  # Passing occupancy per timestep
+        if self._site_metrics_handler is not None:
+            self._site_metrics_handler(self._simulation_time.get_current_datetime(), self._timestep_occupancy, self._timestep_carbon_consumed)
 
         if datetime.strptime('17:00:00', '%H:%M:%S').time() < self._simulation_time.get_current_datetime().time() < datetime.strptime('21:00:00', '%H:%M:%S').time():
             self._peaktime_energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) 

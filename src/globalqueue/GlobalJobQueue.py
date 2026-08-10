@@ -39,9 +39,14 @@ class GlobalJobQueue:
             self._routing_policy.prepare(self._site_list)
         while self.has_jobs():
             job = self._global_queue.popleft()
-            destination = self._routing_policy.choose_scheduler(job, self._site_list)
-            if destination is None:
-                raise ValueError(f"No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
+            if getattr(job, 'force_origin', False):
+                destination = self._site_list.get(job.origin_site)
+                if destination is None:
+                    raise ValueError(f"No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
+            else:
+                destination = self._routing_policy.choose_scheduler(job, self._site_list)
+                if destination is None:
+                    raise ValueError(f"No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
             origin_site = getattr(job, "origin_site", None)
             destination_site_id = getattr(destination, "site_id", None)
             self._routed_counts[job.origin_site] += 1

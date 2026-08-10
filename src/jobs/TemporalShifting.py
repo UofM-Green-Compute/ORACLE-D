@@ -93,9 +93,9 @@ class SustainableQueue:
             self._total_wait_hours[reason] += hours_waited
             if hours_waited > self._max_wait_seen:
                 self._max_wait_seen = hours_waited
-            logger.info(f"SustainableQueue releasing job {item['job'].name} "
-                        f"(waited {hours_waited:.1f}h, "
-                        f"reason: {item['reason']}, CI: {current_CI:.1f})")
+            #logger.info(f"SustainableQueue releasing job {item['job'].name} "
+                        #f"(waited {hours_waited:.1f}h, "
+                        #f"reason: {item['reason']}, CI: {current_CI:.1f})")
             target = item.get('release_target') or submit_target
             target.submit_job(item['job'])
             self._released_jobs += 1
@@ -181,6 +181,49 @@ class SustainableQueue:
         plt.savefig(os.path.join(output_dir, 'temporal_shifting.png'), dpi=150)
         plt.close(fig)
         logger.info(f'Temporal shifting plot saved to {output_dir}/temporal_shifting.png')
+        if total_released > 0:
+            fig2, axes = plt.subplots(1, 2, figsize=(12, 5))
+            fig2.suptitle(f'Job release breakdown — {site_id or "unknown"}', fontsize=11)
+
+            reasons = list(self._release_counts.keys())
+            counts  = [self._release_counts[r] for r in reasons]
+            pcts    = [c / total_released * 100 for c in counts]
+            avg_waits = [
+                self._total_wait_hours[r] / self._release_counts[r]
+                if self._release_counts[r] > 0 else 0.0
+                for r in reasons
+            ]
+
+            colours = ['tab:green', 'tab:olive', 'tab:orange', 'tab:red']
+
+            # --- left: job counts per release reason ---
+            ax = axes[0]
+            bars = ax.bar(reasons, counts, color=colours[:len(reasons)])
+            ax.set_title('Jobs released per condition')
+            ax.set_ylabel('Number of jobs')
+            ax.set_xticks(range(len(reasons)))
+            ax.set_xticklabels(reasons, rotation=20, ha='right', fontsize=8)
+            for bar, pct in zip(bars, pcts):
+                ax.text(bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + max(counts) * 0.01,
+                        f'{pct:.1f}%', ha='center', va='bottom', fontsize=8)
+
+            # --- right: average wait time per release reason ---
+            ax = axes[1]
+            bars = ax.bar(reasons, avg_waits, color=colours[:len(reasons)])
+            ax.set_title('Average wait time per condition')
+            ax.set_ylabel('Hours')
+            ax.set_xticks(range(len(reasons)))
+            ax.set_xticklabels(reasons, rotation=20, ha='right', fontsize=8)
+            for bar, val in zip(bars, avg_waits):
+                ax.text(bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + max(avg_waits) * 0.01,
+                        f'{val:.1f}h', ha='center', va='bottom', fontsize=8)
+
+            plt.tight_layout()
+            plt.savefig(os.path.join(output_dir, 'temporal_shifting_breakdown.png'), dpi=150)
+            plt.close(fig2)
+            logger.info(f'Release breakdown plot saved to {output_dir}/temporal_shifting_breakdown.png')
 
 class TemporalShiftingFactory:
     def create_temporal_policy(policy_name, site_id=None, carbon_intensity_data=None):

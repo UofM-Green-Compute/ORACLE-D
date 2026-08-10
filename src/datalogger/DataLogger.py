@@ -12,7 +12,9 @@ from util import Logging
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
+from datetime import datetime
 
 logger = Logging.get_logger()
 
@@ -38,6 +40,7 @@ class DataLogger():
         self._total_carbon_consumed = 0
         self._peaktime_carbon_consumed = 0
         self._sum_occupancy = 0
+        self._cumulative_wait_time = 0
         
         # Averages
         self._avg_jobs_completed = 0
@@ -46,6 +49,9 @@ class DataLogger():
         self._avg_occupancy = 0
 
         self._job_durations = []
+        self._timestep_timestamps = []
+        self._timestep_occupancies = []
+        self._timestep_carbon_intensities = []
 
         # verbosity
         self._verbosity = config["output"]["verbosity"]
@@ -70,6 +76,10 @@ class DataLogger():
             logger.info(f'At site {self._site_id}: Starting job {job} on node {worker_node.hostname} with origin {job.origin_site} at {job.start_time}')
         self._jobs_started += 1
         self._jobs_total_cores_used += job.cores_req
+
+        if job.submit_time != None and job.start_time != None:
+            wait_seconds = (job.start_time - job.submit_time).total_seconds()
+            self._cumulative_wait_time += wait_seconds
 
 
     def job_finish(self, job, worker_node):
@@ -103,6 +113,12 @@ class DataLogger():
         '''
         self._sum_occupancy += timestep_occupancy # kWh
 
+
+    def record_timestep_metrics(self, timestep_timestamp, timestep_occupancy, timestep_carbon_intensity):
+        self._timestep_timestamps.append(timestep_timestamp)
+        self._timestep_occupancies.append(timestep_occupancy)
+        self._timestep_carbon_intensities.append(timestep_carbon_intensity)
+
     def print_summary(self, summary_file, additional_description, total_simulated_time, timestepinsec, total_real_time, summary_dir=None, print_console=True):
         self._avg_jobs_completed = self._jobs_finished + (self._jobs_started - self._jobs_finished)/2
         self._avg_energy_per_job = self._safe_divide(self._total_energy_consumed, self._avg_jobs_completed)
@@ -123,6 +139,8 @@ class DataLogger():
                     outfile.write(f'{line}\n')
                 outfile.write(f'\n')
 
+            self._plot_occupancy_and_carbon_intensity(output_dir)
+
             # summary_json_path = os.path.join(output_dir, 'summary.json')
             # with open(summary_json_path, 'w') as outfile:
             #     json.dump(summary, outfile, indent=4)
@@ -138,6 +156,9 @@ class DataLogger():
         baseline_cpu_time_per_job = self._safe_divide(baseline_logger._cumulative_cpu_time, baseline_logger._jobs_finished)
         cpu_time_per_job_difference = cpu_time_per_job - baseline_cpu_time_per_job
         time_difference_s = actual_duration_s - baseline_duration_s
+        avg_wait_actual = self._safe_divide(self._cumulative_wait_time, self._jobs_started)/3600
+        avg_wait_baseline = baseline_logger._safe_divide(baseline_logger._cumulative_wait_time, baseline_logger._jobs_started)/3600
+        wait_time_difference = avg_wait_actual - avg_wait_baseline
 
         return {
         "random_seed": run_seed,
@@ -151,12 +172,18 @@ class DataLogger():
         "actual_duration_seconds": actual_duration_s,
         "baseline_duration_seconds": baseline_duration_s,
         "time_difference_seconds": time_difference_s,
+        "avg_wait_actual_hours": avg_wait_actual,
+        "avg_wait_baseline_hours": avg_wait_baseline,
+        "wait_time_difference": wait_time_difference,
         "actual_cumulative_cpu_time": self._cumulative_cpu_time,
         "baseline_cumulative_cpu_time": baseline_logger._cumulative_cpu_time,
         "cpu_time_difference": cpu_time_difference,
         "actual_cpu_time_per_job": cpu_time_per_job,
         "baseline_cpu_time_per_job": baseline_cpu_time_per_job,
         "cpu_time_per_job_difference": cpu_time_per_job_difference,
+        "actual_cumulative_wait_time": self._cumulative_wait_time,
+        "baseline_cumulative_wait_time": baseline_logger._cumulative_wait_time,
+        "wait_time_difference": wait_time_difference
         }
 
     def print_comparison(self, comparison, run_dir, print_console=True):
@@ -167,7 +194,7 @@ class DataLogger():
 
 
         comparison_summary = [
-            f'Perecentage of baseline jobs completed: {comparison["percentage_of_baseline_jobs_completed"]:.2f} %',
+            f'Percentage of baseline jobs completed: {comparison["percentage_of_baseline_jobs_completed"]:.2f} %',
             f'Carbon saved vs baseline: {comparison["carbon_saved_kg"]:.3f} kg',
             f'Time difference vs baseline: {comparison["time_difference_seconds"]/3600:.2f} hours',
             f'Energy saved vs baseline: {comparison["energy_saved_kwh"]:.3f} kWh',
@@ -177,7 +204,7 @@ class DataLogger():
         self._plot_comparison(comparison, run_dir)
 
     def _plot_comparison(self, comparison, run_dir):
-        fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+        fig, axes = plt.subplots(1, 4, figsize=(18, 5))
         fig.suptitle('Green scheduling vs baseline comparison', fontsize=13, fontweight='bold')
         bar_width = 0.25
         x = np.array([0])
@@ -238,6 +265,23 @@ class DataLogger():
                     xy=(0.5, 0.97), xycoords='axes fraction',
                     ha='center', va='top', fontsize=8,
                     color=colour)
+        
+# ── Average wait time ───────────────────────────────────────────────────
+        # ax = axes[3]
+        # actual_wait   = comparison["avg_wait_actual_hours"]
+        # baseline_wait = comparison["avg_wait_baseline_hours"]
+        # ax.bar(x - bar_width/2, baseline_wait, bar_width, label='Baseline', color='#888780')
+        # ax.bar(x + bar_width/2, actual_wait,   bar_width, label='Actual',   color='#7F77DD')
+        # ax.set_title('Avg job wait time')
+        # ax.set_ylabel('hours')
+        # ax.set_xticks([])
+        # ax.legend(fontsize=8)
+        # diff_wait = actual_wait - baseline_wait
+        # colour = '#1D9E75' if diff_wait <= 0 else '#D85A30'
+        # ax.annotate(f'{"Less" if diff_wait <= 0 else "More"}: {abs(diff_wait):.2f} h',
+        #             xy=(0.5, 0.97), xycoords='axes fraction',
+        #             ha='center', va='top', fontsize=8, color=colour)
+        
 
         # ── Jobs completed footer ───────────────────────────────────────────────
         pct = comparison["percentage_of_baseline_jobs_completed"]
@@ -268,6 +312,10 @@ class DataLogger():
         f'Baseline run duration          : {comparison["baseline_duration_seconds"]/3600:.2f} hours',
         f'Time difference (actual - base): {comparison["time_difference_seconds"]/3600:.2f} hours',
         f'',
+        f'Actual average wait time per job: {comparison["actual_cumulative_wait_time"]/3600:.2f} hours',
+        f'Baseline average wait time per job: {comparison["baseline_cumulative_wait_time"]/3600:.2f} hours',
+        f'Wait time difference (actual - base): {comparison["wait_time_difference"]/3600:.2f} hours',
+        f''
         f'Actual total energy consumed   : {comparison["actual_total_energy_consumed"]:.3f} kWh',
         f'Baseline total energy consumed: {comparison["baseline_total_energy_consumed"]:.3f} kWh',
         f'Energy saved                    : {comparison["energy_saved_kwh"]:.3f} kWh',
@@ -364,3 +412,51 @@ class DataLogger():
         if denominator == 0:
             return 0.0
         return numerator / denominator
+
+
+    def _plot_occupancy_and_carbon_intensity(self, output_dir):
+        if not self._timestep_timestamps:
+            return
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        fig, ax_occupancy = plt.subplots(figsize=(12, 5))
+        ax_carbon = ax_occupancy.twinx()
+
+        occupancy_percent = [value * 100 for value in self._timestep_occupancies]
+        occupancy_line = ax_occupancy.plot(
+            self._timestep_timestamps,
+            occupancy_percent,
+            color='#1D9E75',
+            linewidth=1.8,
+            label='Occupancy (%)',
+        )
+        carbon_line = ax_carbon.plot(
+            self._timestep_timestamps,
+            self._timestep_carbon_intensities,
+            color='#D85A30',
+            linewidth=1.6,
+            alpha=0.9,
+            label='Carbon intensity (gCO2e/kWh)',
+        )
+
+        ax_occupancy.set_title(f'Occupancy and carbon intensity over time - {self._site_id}')
+        ax_occupancy.set_xlabel('Time')
+        ax_occupancy.set_ylabel('Occupancy (%)', color='#1D9E75')
+        ax_carbon.set_ylabel('Carbon intensity (gCO2e/kWh)', color='#D85A30')
+        ax_occupancy.tick_params(axis='y', labelcolor='#1D9E75')
+        ax_carbon.tick_params(axis='y', labelcolor='#D85A30')
+        ax_occupancy.xaxis.set_major_formatter(mdates.DateFormatter('%d %H:%M'))
+        ax_occupancy.xaxis.set_major_locator(mdates.AutoDateLocator())
+        fig.autofmt_xdate()
+
+        lines = occupancy_line + carbon_line
+        labels = [line.get_label() for line in lines]
+        ax_occupancy.legend(lines, labels, loc='upper left', fontsize=8)
+        ax_occupancy.grid(True, axis='both', linestyle='--', alpha=0.25)
+
+        plt.tight_layout()
+        plot_path = os.path.join(output_dir, 'occupancy_and_carbon_intensity.png')
+        plt.savefig(plot_path, dpi=150)
+        plt.close(fig)
+        logger.info(f'Occupancy and carbon intensity plot saved to {plot_path}')

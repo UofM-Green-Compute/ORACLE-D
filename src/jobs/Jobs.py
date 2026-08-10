@@ -21,6 +21,7 @@ class Job():
         self._start_time = None
         self._end_time = None
         self.origin_site = origin_site
+        self.force_origin = False
 
 
 

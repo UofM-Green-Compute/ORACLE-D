@@ -46,20 +46,20 @@ class JobScheduler():
 
         # Seed the cluster with initial jobs
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}
-        if self._initial_job_mix != None:
+        if self._initial_job_mix is not None:
             for VO, amount in self._initial_job_mix.items():
-                if VO == 'ATLAS':
-                    for _ in range(amount):
-                        self._submit_target.submit_job(self._atlas_prod.create_job())
-                elif VO == 'LHCb':
-                    for _ in range(amount):
-                        self._submit_target.submit_job(self._lhcb_prod.create_job())
-                elif VO == 'GridPP':
-                    for _ in range(amount):
-                        self._submit_target.submit_job(self._gridpp_job.create_job())                
-                else:
-                    for _ in range(amount):
-                        self._submit_target.submit_job(self._basic_job.create_job())        
+                for _ in range(amount):
+                    if VO == 'ATLAS':
+                        job = self._atlas_prod.create_job()
+                    elif VO == 'LHCb':
+                        job = self._lhcb_prod.create_job()
+                    elif VO == 'GridPP':
+                        job = self._gridpp_job.create_job()
+                    else:
+                        job = self._basic_job.create_job()
+                    job.submit_time = self._simulation_time.get_current_datetime()
+                    job.force_origin = True
+                    self._submit_target.submit_job(job)        
 
         if self._regular_incoming_jobs:
             self._regular_incoming_last_cycle = [0 for _ in self._regular_incoming_jobs]
@@ -79,7 +79,13 @@ class JobScheduler():
 
     def has_queued_jobs(self):
         return self._cluster.has_queued_jobs()
+
+    def get_occupancy(self):
+        return self._cluster.cluster_occupancy()
     
+    def free_capacity_fraction(self):
+        return 1- self._cluster.cluster_occupancy()
+
     def update(self):
         # Jobs to be submitted while the simulation is ongoing
         # Format for regular jobs is a tuple of a dictionary of [{'VO1':jobs per X seconds, 'VO2':jobs per X seconds, [...]}, X]
@@ -104,16 +110,15 @@ class JobScheduler():
                 self._regular_incoming_last_cycle[index] = cyclespassed
                 if cyclespassed > 0:
                     for VO, amount in dict_VO_jobs_per_cycle.items():
-                        if VO == 'ATLAS':
-                            for _ in range(amount):
-                                self._submit_target.submit_job(self._atlas_hourly.create_job())
-                        elif VO == 'LHCb':
-                            for _ in range(amount):
-                                self._submit_target.submit_job(self._lhcb_hourly.create_job())
-                        elif VO == 'GridPP':
-                            for _ in range(amount):
-                                self._submit_target.submit_job(self._gridpp_hourly.create_job())                                 
-                        else:
-                            for _ in range(amount):
-                                self._submit_target.submit_job(self._basic_job.create_job()) 
-                        self._total_jobs_generated += amount   
+                        for _ in range(amount):
+                            if VO == 'ATLAS':
+                                job = self._atlas_hourly.create_job()
+                            elif VO == 'LHCb':
+                                job = self._lhcb_hourly.create_job()
+                            elif VO == 'GridPP':
+                                job = self._gridpp_hourly.create_job()
+                            else:
+                                job = self._basic_job.create_job()
+                            job.submit_time = current_time
+                            self._submit_target.submit_job(job)
+                    self._total_jobs_generated += amount  

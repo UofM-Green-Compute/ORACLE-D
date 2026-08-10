@@ -87,7 +87,11 @@ class Simulation():
             site = self._build_site(cluster_config, index)
             self._cluster_sites.append(site)
 
-        routing_policy = RoutingPolicyFactory.create_routing_policy(self.routing_policy_name, simulation_time=self._simulation_time)
+        routing_policy = RoutingPolicyFactory.create_routing_policy(
+            self.routing_policy_name,
+            simulation_time=self._simulation_time,
+            routing_config=config["Simulation"].get("routing", {}),
+        )
         self._global_scheduler = GlobalJobQueue(routing_policy)
 
         for site, cluster_config in zip(self._cluster_sites, cluster_configs):
@@ -202,7 +206,8 @@ class Simulation():
                                               datalogger.job_finish,
                                               datalogger.energy_and_carbon_consumed, 
                                               datalogger.peaktime_energy_and_carbon_consumed,
-                                              datalogger.sum_occupancy )
+                                              datalogger.sum_occupancy,
+                                              datalogger.record_timestep_metrics )
 
         # Create a job scheduler to initially seed the cluster with jobs and provide jobs on a regular notice. Needs to know about this cluster
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}
@@ -269,8 +274,7 @@ class Simulation():
             site.data_logger.print_summary(True, self._jobdescript, site.finish_sim_seconds, self._simulation_time.get_timestep(), 
                                            real_seconds, print_console = False)
 
-            logger.info(f"Site {site.site_id} total jobs generated: {site.job_scheduler._total_jobs_generated}, ")
-            print(f"Site {site.site_id} total jobs generated: {site.job_scheduler._total_jobs_generated}, ")
+            logger.info(f"Site {site.site_id} total jobs generated: {site.job_scheduler._total_jobs_generated}")
             dl = site.data_logger
             logger.info(f"Site {site.site_id} raw stats — "
                         f"energy: {dl._total_energy_consumed}, "
@@ -314,6 +318,7 @@ class Simulation():
         global_logger._jobs_total_cores_used = sum(datalogger._jobs_total_cores_used for datalogger in dataloggers)
         global_logger._cumulative_cpu_time = sum(datalogger._cumulative_cpu_time for datalogger in dataloggers)
         global_logger._cumulative_wallclock_time = sum(datalogger._cumulative_wallclock_time for datalogger in dataloggers)
+        global_logger._cumulative_wait_time = sum(datalogger._cumulative_wait_time for datalogger in dataloggers)
         global_logger._total_energy_consumed = sum(datalogger._total_energy_consumed for datalogger in dataloggers)
         global_logger._peaktime_energy_consumed = sum(datalogger._peaktime_energy_consumed for datalogger in dataloggers)
         global_logger._total_carbon_consumed = sum(datalogger._total_carbon_consumed for datalogger in dataloggers)

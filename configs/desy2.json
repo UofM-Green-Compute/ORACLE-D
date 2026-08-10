@@ -1,5 +1,5 @@
 {
-  "site_id": "DESY",
+  "site_id": "UoM",
 
   "cluster": {
     "cluster_name": "DEFAULT",
@@ -10,7 +10,7 @@
 
   "carbon_intensity": {
     "folder": "data/carbon_intensity/",
-    "filename": "de_carbon_Intensity_2024_15min.csv",
+    "filename": "north_west_england_intensity.csv",
     "high_CI_threshold": 300
   },
 
@@ -25,6 +25,6 @@
   "savings_policy": "none",
 
   "temporal_shifting": {
-    "policy": "sustainable_queue"
+    "policy": "submit_immediately"
   }
 }
