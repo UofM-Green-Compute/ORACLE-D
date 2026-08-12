@@ -41,7 +41,7 @@ class Cluster():
 
         self._job_submitted_handler = None
         self._energy_and_carbon_consumed_handler = None
-        self._peaktime_energy_and_carbon_consumed_handler = None
+        #self._peaktime_energy_and_carbon_consumed_handler = None
         self._occupancy_handler = None
         self._site_metrics_handler = None
         
@@ -71,10 +71,10 @@ class Cluster():
             logger.info(f'Created cluster with {self.get_number_of_nodes()} worker nodes and {self.get_number_of_cores()} cores')
 
 
-    def set_datalogger_handlers(self, job_submitted, job_started, job_finished, energy_and_carbon_consumed, peaktime_energy_and_carbon_consumed, occupancy, site_metrics=None):
+    def set_datalogger_handlers(self, job_submitted, job_started, job_finished, energy_and_carbon_consumed, occupancy, site_metrics=None): #, peaktime_energy_and_carbon_consumed
         self._job_submitted_handler = job_submitted
         self._energy_and_carbon_consumed_handler = energy_and_carbon_consumed
-        self._peaktime_energy_and_carbon_consumed_handler = peaktime_energy_and_carbon_consumed
+        #self._peaktime_energy_and_carbon_consumed_handler = peaktime_energy_and_carbon_consumed
         self._occupancy_handler = occupancy
         self._site_metrics_handler = site_metrics
 
@@ -249,8 +249,8 @@ class Cluster():
         if self._site_metrics_handler is not None:
             self._site_metrics_handler(self._simulation_time.get_current_datetime(), self._timestep_occupancy, self._timestep_carbon_consumed)
 
-        if datetime.strptime('17:00:00', '%H:%M:%S').time() < self._simulation_time.get_current_datetime().time() < datetime.strptime('21:00:00', '%H:%M:%S').time():
-            self._peaktime_energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) 
+        #if datetime.strptime('17:00:00', '%H:%M:%S').time() < self._simulation_time.get_current_datetime().time() < datetime.strptime('21:00:00', '%H:%M:%S').time():
+            #self._peaktime_energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) 
         
         #print(self._timestep_power_dissipated) #For debugging
         self._timestep_power_dissipated = 0 # Reset the accumulator every time-step

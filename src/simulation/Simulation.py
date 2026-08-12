@@ -205,7 +205,7 @@ class Simulation():
                                               datalogger.job_start, 
                                               datalogger.job_finish,
                                               datalogger.energy_and_carbon_consumed, 
-                                              datalogger.peaktime_energy_and_carbon_consumed,
+                                              #datalogger.peaktime_energy_and_carbon_consumed,
                                               datalogger.sum_occupancy,
                                               datalogger.record_timestep_metrics )
 
@@ -320,10 +320,22 @@ class Simulation():
         global_logger._cumulative_wallclock_time = sum(datalogger._cumulative_wallclock_time for datalogger in dataloggers)
         global_logger._cumulative_wait_time = sum(datalogger._cumulative_wait_time for datalogger in dataloggers)
         global_logger._total_energy_consumed = sum(datalogger._total_energy_consumed for datalogger in dataloggers)
-        global_logger._peaktime_energy_consumed = sum(datalogger._peaktime_energy_consumed for datalogger in dataloggers)
+        #global_logger._peaktime_energy_consumed = sum(datalogger._peaktime_energy_consumed for datalogger in dataloggers)
         global_logger._total_carbon_consumed = sum(datalogger._total_carbon_consumed for datalogger in dataloggers)
-        global_logger._peaktime_carbon_consumed = sum(datalogger._peaktime_carbon_consumed for datalogger in dataloggers)
+        #global_logger._peaktime_carbon_consumed = sum(datalogger._peaktime_carbon_consumed for datalogger in dataloggers)
         global_logger._sum_occupancy = sum(datalogger._sum_occupancy for datalogger in dataloggers) / len(dataloggers)
+        global_logger._site_job_totals = {
+            site.site_id: site.job_scheduler._total_jobs_generated
+            for site in self._cluster_sites
+        }
+        global_logger._site_job_started_totals = {
+            site.site_id: site.data_logger._jobs_started
+            for site in self._cluster_sites
+        }
+        global_logger._site_job_finished_totals = {
+            site.site_id: site.data_logger._jobs_finished
+            for site in self._cluster_sites
+        }
         return global_logger
 
         

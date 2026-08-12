@@ -121,4 +121,4 @@ class JobScheduler():
                                 job = self._basic_job.create_job()
                             job.submit_time = current_time
                             self._submit_target.submit_job(job)
-                    self._total_jobs_generated += amount  
+                        self._total_jobs_generated += amount  

@@ -52,6 +52,9 @@ class DataLogger():
         self._timestep_timestamps = []
         self._timestep_occupancies = []
         self._timestep_carbon_intensities = []
+        self._site_job_totals = {}
+        self._site_job_started_totals = {}
+        self._site_job_finished_totals = {}
 
         # verbosity
         self._verbosity = config["output"]["verbosity"]
@@ -141,15 +144,12 @@ class DataLogger():
 
             self._plot_occupancy_and_carbon_intensity(output_dir)
 
-            # summary_json_path = os.path.join(output_dir, 'summary.json')
-            # with open(summary_json_path, 'w') as outfile:
-            #     json.dump(summary, outfile, indent=4)
-            #     outfile.write('\n')
 
 
     def comparison(self, baseline_logger, run_seed, actual_duration_s, baseline_duration_s):
         percentage_of_baseline_jobs_completed = self._safe_divide(self._jobs_finished, baseline_logger._jobs_finished) * 100
         carbon_saved_g = baseline_logger._total_carbon_consumed - self._total_carbon_consumed
+        carbon_saved_percentage = (carbon_saved_g / baseline_logger._total_carbon_consumed) * 100 if baseline_logger._total_carbon_consumed > 0 else 0
         energy_saved_kwh = baseline_logger._total_energy_consumed - self._total_energy_consumed
         cpu_time_difference = self._cumulative_cpu_time - baseline_logger._cumulative_cpu_time
         cpu_time_per_job = self._safe_divide(self._cumulative_cpu_time, self._jobs_finished)
@@ -166,6 +166,7 @@ class DataLogger():
         "actual_total_carbon_g": self._total_carbon_consumed,
         "baseline_total_carbon_g": baseline_logger._total_carbon_consumed,
         "carbon_saved_kg": carbon_saved_g / 1e3,
+        "carbon_saved_percentage": carbon_saved_percentage,
         "actual_total_energy_consumed": self._total_energy_consumed,
         "baseline_total_energy_consumed": baseline_logger._total_energy_consumed,
         "energy_saved_kwh": energy_saved_kwh,
@@ -204,83 +205,75 @@ class DataLogger():
         self._plot_comparison(comparison, run_dir)
 
     def _plot_comparison(self, comparison, run_dir):
-        fig, axes = plt.subplots(1, 4, figsize=(18, 5))
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5))
         fig.suptitle('Green scheduling vs baseline comparison', fontsize=13, fontweight='bold')
-        bar_width = 0.25
+        bar_width = 0.06
         x = np.array([0])
+
+        def style_axis(ax):
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.set_xticks([])
+            ax.legend(fontsize=8, frameon=False)
+
+        def add_value_labels(ax, bars):
+            for bar in bars:
+                height = bar.get_height()
+                ax.annotate(f'{height:.2f}',
+                            xy=(bar.get_x() + bar.get_width() / 2, height),
+                            xytext=(0, 4), textcoords='offset points',
+                            ha='center', va='bottom', fontsize=8, color='#333333')
+
+        def add_diff_annotation(ax, label, value, unit, higher_is_better=False):
+            top = ax.get_ylim()[1]
+            colour = '#1D9E75' if value >= 0 else '#D85A30'
+            word = 'Saved' if value >= 0 else 'Extra'
+            ax.annotate(f'{word}: {abs(value):.3f} {unit}',
+                        xy=(0.5, 1.14), xycoords='axes fraction',
+                        ha='center', va='bottom', fontsize=9, fontweight='bold',
+                        color=colour)
+            # give headroom so the annotation never collides with bar labels
+            ax.set_ylim(0, top * 1.22)
 
         # ── Carbon ──────────────────────────────────────────────────────────────
         ax = axes[0]
         actual_carbon   = comparison["actual_total_carbon_g"] / 1e3
         baseline_carbon = comparison["baseline_total_carbon_g"] / 1e3
-        bars_a = ax.bar(x - bar_width/2, baseline_carbon, bar_width,
-                        label='Baseline', color='#888780')
-        bars_b = ax.bar(x + bar_width/2, actual_carbon,   bar_width,
-                        label='Actual',   color='#1D9E75')
+        bars_base = ax.bar(x - bar_width/2, baseline_carbon, bar_width, label='Baseline', color='#888780')
+        bars_act  = ax.bar(x + bar_width/2, actual_carbon,   bar_width, label='Actual',   color='#1D9E75')
         ax.set_title('Carbon consumed')
         ax.set_ylabel('kg CO₂e')
-        ax.set_xticks([])
-        ax.legend(fontsize=8)
-        saved_carbon = baseline_carbon - actual_carbon
-        colour = '#1D9E75' if saved_carbon >= 0 else '#D85A30'
-        ax.annotate(f'{"Saved" if saved_carbon >= 0 else "Extra"}: {abs(saved_carbon):.3f} kg',
-                    xy=(0.5, 0.97), xycoords='axes fraction',
-                    ha='center', va='top', fontsize=8,
-                    color=colour)
+        style_axis(ax)
+        add_value_labels(ax, list(bars_base) + list(bars_act))
+        add_diff_annotation(ax, 'carbon', baseline_carbon - actual_carbon, 'kg')
 
         # ── Energy ──────────────────────────────────────────────────────────────
         ax = axes[1]
         actual_energy   = comparison["actual_total_energy_consumed"]
         baseline_energy = comparison["baseline_total_energy_consumed"]
-        ax.bar(x - bar_width/2, baseline_energy, bar_width,
-            label='Baseline', color='#888780')
-        ax.bar(x + bar_width/2, actual_energy,   bar_width,
-            label='Actual',   color='#378ADD')
+        bars_base = ax.bar(x - bar_width/2, baseline_energy, bar_width, label='Baseline', color='#888780')
+        bars_act  = ax.bar(x + bar_width/2, actual_energy,   bar_width, label='Actual',   color='#378ADD')
         ax.set_title('Energy consumed')
         ax.set_ylabel('kWh')
-        ax.set_xticks([])
-        ax.legend(fontsize=8)
-        saved_energy = baseline_energy - actual_energy
-        colour = '#1D9E75' if saved_energy >= 0 else '#D85A30'
-        ax.annotate(f'{"Saved" if saved_energy >= 0 else "Extra"}: {abs(saved_energy):.3f} kWh',
-                    xy=(0.5, 0.97), xycoords='axes fraction',
-                    ha='center', va='top', fontsize=8,
-                    color=colour)
+        style_axis(ax)
+        add_value_labels(ax, list(bars_base) + list(bars_act))
+        add_diff_annotation(ax, 'energy', baseline_energy - actual_energy, 'kWh')
 
         # ── CPU time per job ────────────────────────────────────────────────────
         ax = axes[2]
         actual_cpu   = comparison["actual_cpu_time_per_job"]   / 3600
         baseline_cpu = comparison["baseline_cpu_time_per_job"] / 3600
-        ax.bar(x - bar_width/2, baseline_cpu, bar_width,
-            label='Baseline', color='#888780')
-        ax.bar(x + bar_width/2, actual_cpu,   bar_width,
-            label='Actual',   color='#EF9F27')
+        bars_base = ax.bar(x - bar_width/2, baseline_cpu, bar_width, label='Baseline', color='#888780')
+        bars_act  = ax.bar(x + bar_width/2, actual_cpu,   bar_width, label='Actual',   color='#EF9F27')
         ax.set_title('CPU time per job')
         ax.set_ylabel('hours')
-        ax.set_xticks([])
-        ax.legend(fontsize=8)
-        diff_cpu = actual_cpu - baseline_cpu
-        colour = '#1D9E75' if diff_cpu <= 0 else '#D85A30'
-        ax.annotate(f'{"Less" if diff_cpu <= 0 else "More"}: {abs(diff_cpu):.2f} h/job',
-                    xy=(0.5, 0.97), xycoords='axes fraction',
-                    ha='center', va='top', fontsize=8,
-                    color=colour)
-        
-# ── Average wait time ───────────────────────────────────────────────────
-        # ax = axes[3]
-        # actual_wait   = comparison["avg_wait_actual_hours"]
-        # baseline_wait = comparison["avg_wait_baseline_hours"]
-        # ax.bar(x - bar_width/2, baseline_wait, bar_width, label='Baseline', color='#888780')
-        # ax.bar(x + bar_width/2, actual_wait,   bar_width, label='Actual',   color='#7F77DD')
-        # ax.set_title('Avg job wait time')
-        # ax.set_ylabel('hours')
-        # ax.set_xticks([])
-        # ax.legend(fontsize=8)
-        # diff_wait = actual_wait - baseline_wait
-        # colour = '#1D9E75' if diff_wait <= 0 else '#D85A30'
-        # ax.annotate(f'{"Less" if diff_wait <= 0 else "More"}: {abs(diff_wait):.2f} h',
-        #             xy=(0.5, 0.97), xycoords='axes fraction',
-        #             ha='center', va='top', fontsize=8, color=colour)
+        style_axis(ax)
+        add_value_labels(ax, list(bars_base) + list(bars_act))
+        diff_cpu = baseline_cpu - actual_cpu  # positive = less CPU time used, i.e. "saved"
+        add_diff_annotation(ax, 'cpu', diff_cpu, 'h/job')
+
+        plt.tight_layout()
+        fig.savefig(os.path.join(run_dir, 'carbon_savings_comparison.png'), dpi=150, bbox_inches='tight')
         
 
         # ── Jobs completed footer ───────────────────────────────────────────────
@@ -307,14 +300,15 @@ class DataLogger():
         f'Actual total carbon consumed  : {comparison["actual_total_carbon_g"]/1e3:.3f} kg',
         f'Baseline total carbon consumed: {comparison["baseline_total_carbon_g"]/1e3:.3f} kg',
         f'Carbon saved                  : {comparison["carbon_saved_kg"]:.3f} kg',
+        f'Carbon saved percentage         : {comparison["carbon_saved_percentage"]:.2f} %',
         f'',
         f'Actual run duration            : {comparison["actual_duration_seconds"]/3600:.2f} hours',
         f'Baseline run duration          : {comparison["baseline_duration_seconds"]/3600:.2f} hours',
         f'Time difference (actual - base): {comparison["time_difference_seconds"]/3600:.2f} hours',
         f'',
-        f'Actual average wait time per job: {comparison["actual_cumulative_wait_time"]/3600:.2f} hours',
-        f'Baseline average wait time per job: {comparison["baseline_cumulative_wait_time"]/3600:.2f} hours',
-        f'Wait time difference (actual - base): {comparison["wait_time_difference"]/3600:.2f} hours',
+        f'Actual average wait time per job: {comparison["avg_wait_actual_hours"]:.2f} hours',
+        f'Baseline average wait time per job: {comparison["avg_wait_baseline_hours"]:.2f} hours',
+        f'Wait time difference (actual - base): {comparison["wait_time_difference"]:.2f} hours',
         f''
         f'Actual total energy consumed   : {comparison["actual_total_energy_consumed"]:.3f} kWh',
         f'Baseline total energy consumed: {comparison["baseline_total_energy_consumed"]:.3f} kWh',
@@ -356,23 +350,23 @@ class DataLogger():
             },
             "energy": {
                 "total_kwh": self._total_energy_consumed,
-                "peaktime_kwh": self._peaktime_energy_consumed,
+                #"peaktime_kwh": self._peaktime_energy_consumed,
                 "average_per_job_wh": self._avg_energy_per_job*1e3,
             },
             "carbon": {
                 "total_g": self._total_carbon_consumed,
                 "total_kg": self._total_carbon_consumed/1e3,
-                "peaktime_g": self._peaktime_carbon_consumed,
-                "peaktime_kg": self._peaktime_carbon_consumed/1e3,
+                #"peaktime_g": self._peaktime_carbon_consumed,
+                #"peaktime_kg": self._peaktime_carbon_consumed/1e3,
                 "average_per_job_g": self._avg_carbon_per_job,
-                "peaktime_percent": self._safe_divide(self._peaktime_carbon_consumed, self._total_carbon_consumed) * 100,
+                #"peaktime_percent": self._safe_divide(self._peaktime_carbon_consumed, self._total_carbon_consumed) * 100,
             },
         }
 
 
 
     def _format_summary_lines(self, total_simulated_time, total_real_time): 
-        return [
+        summary_lines = [
             f'Data centre: {self._site_id}',
             f'========',
             f'Summary',
@@ -390,15 +384,26 @@ class DataLogger():
             f'Average Occupancy of all clusters  : {(self._avg_occupancy*100):3.1f} %',
             f'',
             f'Total energy consumed by compute   : {self._total_energy_consumed:3.2f} kWh',
-            f'Peaktime (5-9pm) energy consumption: {self._peaktime_energy_consumed:3.2f} kWh',
+           # f'Peaktime (5-9pm) energy consumption: {self._peaktime_energy_consumed:3.2f} kWh',
             f'Average energy consumption per job : {self._avg_energy_per_job*1e3:3.2f} Wh',
             f'',
             f'Estimated CO2e emissions           : {self._total_carbon_consumed/1e3:.3f} kg',
-            f'Estimated Peaktime CO2e emissions  : {self._peaktime_carbon_consumed/1e3:.3f} kg',
+            #f'Estimated Peaktime CO2e emissions  : {self._peaktime_carbon_consumed/1e3:.3f} kg',
             f'Average CO2e emissions per job     : {self._avg_carbon_per_job:.3f} g',
-            f'Peaktime CO2e emissions percentage : {self._safe_divide(self._peaktime_carbon_consumed, self._total_carbon_consumed)*100:.3f} %',
+            #f'Peaktime CO2e emissions percentage : {self._safe_divide(self._peaktime_carbon_consumed, self._total_carbon_consumed)*100:.3f} %',
             ''
         ]
+
+        if self._site_job_totals:
+            summary_lines.extend(self._format_site_job_breakdown('Jobs generated by site', self._site_job_totals, 'jobs'))
+
+        if self._site_job_started_totals:
+            summary_lines.extend(self._format_site_job_breakdown('Jobs started by site', self._site_job_started_totals, 'started'))
+
+        if self._site_job_finished_totals:
+            summary_lines.extend(self._format_site_job_breakdown('Jobs finished by site', self._site_job_finished_totals, 'finished'))
+
+        return summary_lines
 
 
     def _emit_summary_lines(self, summary_lines, print_console=True):
@@ -412,6 +417,19 @@ class DataLogger():
         if denominator == 0:
             return 0.0
         return numerator / denominator
+
+
+    def _format_site_job_breakdown(self, title, site_totals, unit_label):
+        lines = [
+            title,
+            '-' * len(title),
+        ]
+        total_jobs = sum(site_totals.values())
+        for site_id, job_count in sorted(site_totals.items()):
+            percentage = self._safe_divide(job_count, total_jobs) * 100
+            lines.append(f'{site_id:<30}: {job_count:>8} {unit_label} ({percentage:5.1f} %)')
+        lines.append('')
+        return lines
 
 
     def _plot_occupancy_and_carbon_intensity(self, output_dir):

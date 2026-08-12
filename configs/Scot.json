@@ -25,6 +25,6 @@
   "savings_policy": "none",
 
   "temporal_shifting": {
-    "policy": "SubmitImmediately"
+    "policy": "submit_immediately"
   }
 }
