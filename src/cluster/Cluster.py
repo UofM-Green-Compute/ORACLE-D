@@ -143,11 +143,6 @@ class Cluster():
     
     def queue_length(self):
         return len(self._queued_jobs)
-
-    def get_queue_density(self):
-        if self.get_number_of_cores() == 0:
-            return 0
-        return len(self._queued_jobs) / self.get_number_of_cores()
     
     def update(self):
         # ---------------------------------

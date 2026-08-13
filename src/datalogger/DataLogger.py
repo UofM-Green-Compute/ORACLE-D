@@ -152,6 +152,10 @@ class DataLogger():
         carbon_saved_percentage = (carbon_saved_g / baseline_logger._total_carbon_consumed) * 100 if baseline_logger._total_carbon_consumed > 0 else 0
         energy_saved_kwh = baseline_logger._total_energy_consumed - self._total_energy_consumed
         cpu_time_difference = self._cumulative_cpu_time - baseline_logger._cumulative_cpu_time
+        logger.info(f"Base c: {baseline_logger._total_carbon_consumed} Actual c: {self._total_carbon_consumed} Base cpu: {baseline_logger._cumulative_cpu_time} Actual cpu: {self._cumulative_cpu_time}")
+        carbon_per_cpu_hour_baseline = baseline_logger._total_carbon_consumed/ baseline_logger._cumulative_cpu_time
+        carbon_per_cpu_hour = self._total_carbon_consumed/self._cumulative_cpu_time
+        carbon_per_cpu_hour_percentage = (carbon_per_cpu_hour_baseline - carbon_per_cpu_hour)/carbon_per_cpu_hour_baseline * 100 if carbon_per_cpu_hour_baseline > 0 else 0
         cpu_time_per_job = self._safe_divide(self._cumulative_cpu_time, self._jobs_finished)
         baseline_cpu_time_per_job = self._safe_divide(baseline_logger._cumulative_cpu_time, baseline_logger._jobs_finished)
         cpu_time_per_job_difference = cpu_time_per_job - baseline_cpu_time_per_job
@@ -184,7 +188,10 @@ class DataLogger():
         "cpu_time_per_job_difference": cpu_time_per_job_difference,
         "actual_cumulative_wait_time": self._cumulative_wait_time,
         "baseline_cumulative_wait_time": baseline_logger._cumulative_wait_time,
-        "wait_time_difference": wait_time_difference
+        "wait_time_difference": wait_time_difference,
+        "carbon_per_cpu_hour": carbon_per_cpu_hour,
+        "carbon_per_cpu_hour_baseline": carbon_per_cpu_hour_baseline,
+        "carbon_per_cpu_hour_percentage": carbon_per_cpu_hour_percentage
         }
 
     def print_comparison(self, comparison, run_dir, print_console=True):
@@ -205,7 +212,7 @@ class DataLogger():
         self._plot_comparison(comparison, run_dir)
 
     def _plot_comparison(self, comparison, run_dir):
-        fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+        fig, axes = plt.subplots(1, 2, figsize=(18, 5))
         fig.suptitle('Green scheduling vs baseline comparison', fontsize=13, fontweight='bold')
         bar_width = 0.06
         x = np.array([0])
@@ -260,17 +267,17 @@ class DataLogger():
         add_diff_annotation(ax, 'energy', baseline_energy - actual_energy, 'kWh')
 
         # ── CPU time per job ────────────────────────────────────────────────────
-        ax = axes[2]
-        actual_cpu   = comparison["actual_cpu_time_per_job"]   / 3600
-        baseline_cpu = comparison["baseline_cpu_time_per_job"] / 3600
-        bars_base = ax.bar(x - bar_width/2, baseline_cpu, bar_width, label='Baseline', color='#888780')
-        bars_act  = ax.bar(x + bar_width/2, actual_cpu,   bar_width, label='Actual',   color='#EF9F27')
-        ax.set_title('CPU time per job')
-        ax.set_ylabel('hours')
-        style_axis(ax)
-        add_value_labels(ax, list(bars_base) + list(bars_act))
-        diff_cpu = baseline_cpu - actual_cpu  # positive = less CPU time used, i.e. "saved"
-        add_diff_annotation(ax, 'cpu', diff_cpu, 'h/job')
+        # ax = axes[2]
+        # actual_cpu   = comparison["actual_cpu_time_per_job"]   / 3600
+        # baseline_cpu = comparison["baseline_cpu_time_per_job"] / 3600
+        # bars_base = ax.bar(x - bar_width/2, baseline_cpu, bar_width, label='Baseline', color='#888780')
+        # bars_act  = ax.bar(x + bar_width/2, actual_cpu,   bar_width, label='Actual',   color='#EF9F27')
+        # ax.set_title('CPU time per job')
+        # ax.set_ylabel('hours')
+        # style_axis(ax)
+        # add_value_labels(ax, list(bars_base) + list(bars_act))
+        # diff_cpu = baseline_cpu - actual_cpu  # positive = less CPU time used, i.e. "saved"
+        # add_diff_annotation(ax, 'cpu', diff_cpu, 'h/job')
 
         plt.tight_layout()
         fig.savefig(os.path.join(run_dir, 'carbon_savings_comparison.png'), dpi=150, bbox_inches='tight')
@@ -301,6 +308,9 @@ class DataLogger():
         f'Baseline total carbon consumed: {comparison["baseline_total_carbon_g"]/1e3:.3f} kg',
         f'Carbon saved                  : {comparison["carbon_saved_kg"]:.3f} kg',
         f'Carbon saved percentage         : {comparison["carbon_saved_percentage"]:.2f} %',
+        f'Carbon saved per CPU hour       : {comparison["carbon_per_cpu_hour"]:.3e} g/kWh',
+        f'Carbon saved per CPU hour (baseline): {comparison["carbon_per_cpu_hour_baseline"]:.3e} g/kWh',
+        f'Carbon saved per CPU hour percentage: {comparison["carbon_per_cpu_hour_percentage"]:.2f} %',
         f'',
         f'Actual run duration            : {comparison["actual_duration_seconds"]/3600:.2f} hours',
         f'Baseline run duration          : {comparison["baseline_duration_seconds"]/3600:.2f} hours',

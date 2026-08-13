@@ -92,20 +92,34 @@ class ATLASJobFactory(VOJobFactory):
             durationmins = 5
         return durationmins * 60
 
+    # def __require_cores(self):
+    #     # Determine whether you are running a Single or multi-core job.
+    #     if self._cores_requested == None: 
+    #         core_num_seed = random.randint(0,101)    
+    #         if core_num_seed < 80: self._cores_requested = 8 #80% chance of requring 8 cores.
+    #         else                 : self._cores_requested = 1 #20% chance of requring 1 core. 
+    #     return self._cores_requested
+
     def __require_cores(self):
-        # Determine whether you are running a Single or multi-core job.
-        if self._cores_requested == None: 
-            core_num_seed = random.randint(0,101)    
-            if core_num_seed < 80: self._cores_requested = 8 #80% chance of requring 8 cores.
-            else                 : self._cores_requested = 1 #20% chance of requring 1 core. 
-        return self._cores_requested
+        if self._cores_requested is not None:
+            return self._cores_requested
+        return 8 if random.random() < 0.8 else 1
 
     def create_job(self):
         logger.debug('Creating ATLAS production job')
         self._job_number += 1
         name = f'{self._tag}{self._job_number}'
-        return Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores(), self._origin_site)
+        job = Job(name, self.__get_duration(), self._memory_required_GB_per_core, self.__require_cores(), self._origin_site)
+        if self._job_number <= 10:
+            logger.info(
+                f"ATLAS JOB {self._job_number}: "
+                f"duration={self.__get_duration():.2f}s, "
+                f"cores={self.__require_cores()}, "
+                f"RAM/core={self._memory_required_GB_per_core}, "
+                f"origin={self._origin_site}"
+            )
 
+        return job
 
 
 class LHCbJobFactory(VOJobFactory):
@@ -127,14 +141,19 @@ class LHCbJobFactory(VOJobFactory):
             durationmins = 5
         return durationmins * 60
 
+    # def __require_cores(self):
+    #     # Determine whether you are running a Single or multi-core job.
+    #     if self._cores_requested == None: 
+    #         core_num_seed = random.randint(0,101)    
+    #         if core_num_seed < 10: self._cores_requested = 8 #10% chance of requring 8 cores.
+    #         else                 : self._cores_requested = 1 #90% chance of requring 1 core. 
+    #     return self._cores_requested
     def __require_cores(self):
-        # Determine whether you are running a Single or multi-core job.
-        if self._cores_requested == None: 
-            core_num_seed = random.randint(0,101)    
-            if core_num_seed < 10: self._cores_requested = 8 #10% chance of requring 8 cores.
-            else                 : self._cores_requested = 1 #90% chance of requring 1 core. 
-        return self._cores_requested
-    
+        if self._cores_requested is not None:
+            return self._cores_requested
+
+        return 8 if random.random() < 0.1 else 1
+
     def create_job(self):
         logger.debug('Creating LHCb production job')
         self._job_number += 1

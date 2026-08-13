@@ -34,8 +34,8 @@ class ProportionalCIRouting:
         for scheduler in scheduler_list:
             site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', 'Unknown'))
             current_time = self._simulation_time.get_current_datetime()  # <-- add this
-            logger.info(f"[{current_time}] Scheduler {site_id} has weighted carbon intensity score: {self._ci_score_store[id(scheduler)]},"
-                        f" free capacity fraction: {self._capacity_store[id(scheduler)]}")
+            #logger.info(f"[{current_time}] Scheduler {site_id} has weighted carbon intensity score: {self._ci_score_store[id(scheduler)]},"
+             #           f" free capacity fraction: {self._capacity_store[id(scheduler)]}")
 
     def choose_scheduler(self, job, schedulers):
         if job is None or schedulers is None:
@@ -64,7 +64,7 @@ class CapacityAwareProportionalCIRouting:
         scheduler_list = schedulers.values() if isinstance(schedulers,dict) else schedulers
         for scheduler in scheduler_list:
             ci_score = scheduler.get_weighted_carbon_intensity()
-            occupancy = scheduler.get_occupancy()
+            occupancy = scheduler.cluster_occupancy()
             routing_score = ci_score * (occupancy ** self._k)
             self._ci_score_store[id(scheduler)] = ci_score
             self._routing_scores[id(scheduler)] = routing_score
@@ -107,7 +107,7 @@ class CapacityAwareCIRouting:
         scheduler_list = schedulers.values() if isinstance(schedulers,dict) else schedulers
         for scheduler in scheduler_list:
             ci_score = scheduler.get_carbon_intensity()
-            occupancy = scheduler.get_occupancy()
+            occupancy = scheduler.cluster_occupancy()
             routing_score = ci_score * (occupancy ** self._k)
             self._ci_store[id(scheduler)] = ci_score
             self._routing_scores[id(scheduler)] = routing_score
@@ -152,7 +152,7 @@ class OriginCapacityAwareCIRouting:
         scheduler_list = schedulers.values() if isinstance(schedulers,dict) else schedulers
         for scheduler in scheduler_list:
             ci_score = scheduler.get_carbon_intensity()
-            occupancy = scheduler.get_occupancy()
+            occupancy = scheduler.cluster_occupancy()
             ci_occ_score = ci_score * (occupancy ** self._k)
             self._ci_store[id(scheduler)] = ci_score
             self._occupancy_store[id(scheduler)] = occupancy
@@ -170,12 +170,16 @@ class OriginCapacityAwareCIRouting:
         scheduler_list = list(schedulers.values()) if isinstance(schedulers, dict) else list(schedulers)
         if not scheduler_list:
             return None
-
+        
         chosen_site = None
         lowest_routing_score = None
         origin_site = getattr(job, "origin_site", None)
+        MAX_OCCUPANCY = 0.9
 
         for scheduler in scheduler_list:
+            occupancy = self._occupancy_store.get(id(scheduler))
+            if occupancy is not None and occupancy >= MAX_OCCUPANCY:
+                continue
             self._scheduler_site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', None))
             ci_occ_score = self._routing_scores.get(id(scheduler))
             if ci_occ_score is None:

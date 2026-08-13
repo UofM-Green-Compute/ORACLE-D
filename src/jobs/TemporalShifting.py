@@ -24,6 +24,7 @@ class SustainableQueue:
         self._max_wait_hours = 24
         self._mid_wait_hours = 12
         self._short_wait_hours = 6
+        self._max_occupancy = 0.9
         self._waiting_line = []
         self._history = []
         self._released_jobs = 0
@@ -40,6 +41,7 @@ class SustainableQueue:
             'Low Carbon (<25th)':     0.0,
         }
         self._max_wait_seen = 0.0
+        self._held_for_capacity = 0
         self.site_id = config.get("site_id")
 
         ci_values = []
@@ -63,16 +65,28 @@ class SustainableQueue:
         #Used to prevent jobs being set directly to cluster
         self._waiting_line.append({'time_arrived': current_time, 'job': job, 'release_target': release_target})
 
-    def update(self, current_time, current_CI, submit_target=None):
+    def updatee(self, current_time, current_CI, submit_target=None):
         self._history.append({'time': current_time, 'ci': current_CI, 'held': len(self._waiting_line)})
         release_now = []
         wait_longer = []
+        projected_occupancy = {}
+        potential_submission = []
 
         for item in self._waiting_line:
             hours_waiting = (current_time - item['time_arrived']).total_seconds() / 3600.0
-
+            target = item.get('release_target') or submit_target
             if hours_waiting >= self._max_wait_hours:
                 item['reason'] = 'Deadline Forced'
+                potential_submission.append((item,True))
+                release_now.append(item)
+                continue
+
+            occupancy = target.cluster_occupancy() if target else 0.0
+            if occupancy and occupancy >= self._max_occupancy:
+                self._held_for_capacity += 1
+                wait_longer.append(item)
+                continue
+
             elif hours_waiting >= self._mid_wait_hours and current_CI <= self._high_ci:
                 item['reason'] = 'High Carbon (<75th)'
             elif hours_waiting >= self._short_wait_hours and current_CI <= self._mid_ci:
@@ -101,7 +115,78 @@ class SustainableQueue:
             self._released_jobs += 1
 
         return [item['job'] for item in release_now]
+    
+    def update(self, current_time, current_CI, submit_target=None):
+        self._history.append({'time': current_time, 'ci': current_CI, 'held': len(self._waiting_line)})
+        release_now = []
+        wait_longer = []
 
+        # Track projected occupancy per target as we tentatively release jobs this timestep.
+        projected_occupancy = {}
+
+        # Sort so Deadline Forced jobs are considered first — they must go through
+        # regardless of capacity, and everything else budgets around them.
+        potential_releases = []
+        for item in self._waiting_line:
+            hours_waiting = (current_time - item['time_arrived']).total_seconds() / 3600.0
+            if hours_waiting >= self._max_wait_hours:
+                item['reason'] = 'Deadline Forced'
+                potential_releases.append((item, True))   # True = capacity-exempt
+            elif hours_waiting >= self._mid_wait_hours and current_CI <= self._high_ci:
+                item['reason'] = 'High Carbon (<75th)'
+                potential_releases.append((item, False))
+            elif hours_waiting >= self._short_wait_hours and current_CI <= self._mid_ci:
+                item['reason'] = 'Medium Carbon (<50th)'
+                potential_releases.append((item, False))
+            elif current_CI <= self._low_ci:
+                item['reason'] = 'Low Carbon (<25th)'
+                potential_releases.append((item, False))
+            else:
+                wait_longer.append(item)
+
+        # Deadline-forced first, so they always get through; remaining budget
+        # is then shared among carbon-driven releases in wait order.
+        potential_releases.sort(key=lambda pair: not pair[1])
+
+        for item, capacity_exempt in potential_releases:
+            target = item.get('release_target') or submit_target
+            if target is None:
+                release_now.append(item)
+                continue
+
+            tid = id(target)
+            if tid not in projected_occupancy:
+                projected_occupancy[tid] = target.cluster_occupancy()
+
+            job_share = self._job_occupancy_share(item['job'], target)
+
+            if capacity_exempt or projected_occupancy[tid] + job_share <= self._max_occupancy:
+                release_now.append(item)
+                projected_occupancy[tid] += job_share
+            else:
+                self._held_for_capacity += 1
+                wait_longer.append(item)
+
+        self._waiting_line = wait_longer
+
+        for item in release_now:
+            hours_waited = (current_time - item['time_arrived']).total_seconds() / 3600.0
+            reason = item['reason']
+            self._release_counts[reason] += 1
+            self._total_wait_hours[reason] += hours_waited
+            if hours_waited > self._max_wait_seen:
+                self._max_wait_seen = hours_waited
+            target = item.get('release_target') or submit_target
+            target.submit_job(item['job'])
+            self._released_jobs += 1
+
+        return [item['job'] for item in release_now]
+
+    def _job_occupancy_share(self, job, target):
+        total_cores = target.get_number_of_cores()
+        return job.cores_req / total_cores if total_cores > 0 else 0.0
+
+    
     def write_summary(self, output_dir, site_id=None):
         os.makedirs(output_dir, exist_ok=True)
         total_released = sum(self._release_counts.values())
@@ -193,8 +278,7 @@ class SustainableQueue:
                 if self._release_counts[r] > 0 else 0.0
                 for r in reasons
             ]
-
-            colours = ['tab:green', 'tab:olive', 'tab:orange', 'tab:red']
+            colours = ['tab:red', 'tab:orange', 'tab:olive', 'tab:green']
 
             # --- left: job counts per release reason ---
             ax = axes[0]

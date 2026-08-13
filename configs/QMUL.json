@@ -15,16 +15,14 @@
   },
 
   "jobs": {
-    "initial_mix": {
-      "GridPP": 10000
-    },
-    "regular_incoming_mix": {"GridPP": 1000},
-    "incoming_timestep": 3600
+"initial_mix": {"ATLAS": 1750},
+    "regular_incoming_mix": {"ATLAS": 80},
+    "incoming_timestep": 600
   },
 
   "savings_policy": "none",
 
   "temporal_shifting": {
-    "policy": "submit_immediately"
+    "policy": "sustainable_queue"
   }
 }

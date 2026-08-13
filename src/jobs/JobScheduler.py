@@ -80,7 +80,7 @@ class JobScheduler():
     def has_queued_jobs(self):
         return self._cluster.has_queued_jobs()
 
-    def get_occupancy(self):
+    def cluster_occupancy(self):
         return self._cluster.cluster_occupancy()
     
     def free_capacity_fraction(self):
