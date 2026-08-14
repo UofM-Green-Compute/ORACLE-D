@@ -161,40 +161,49 @@ class OriginCapacityAwareCIRouting:
         for scheduler in scheduler_list:
             site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', 'Unknown'))
             current_time = self._simulation_time.get_current_datetime()  # <-- add this
-            logger.info(f"[{current_time}] Scheduler {site_id} has carbon intensity: {self._ci_store[id(scheduler)]},"
-                        f" occupancy: {self._occupancy_store[id(scheduler)]}, routing score: {self._routing_scores[id(scheduler)]}")
+            #logger.info(f"[{current_time}] Scheduler {site_id} has carbon intensity: {self._ci_store[id(scheduler)]},"
+                        #f" occupancy: {self._occupancy_store[id(scheduler)]}, routing score: {self._routing_scores[id(scheduler)]}")
             
+    
     def choose_scheduler(self, job, schedulers):
         if job is None or schedulers is None:
             return None
-        scheduler_list = list(schedulers.values()) if isinstance(schedulers, dict) else list(schedulers)
+
+        scheduler_list = (list(schedulers.values()) if isinstance(schedulers, dict) else list(schedulers))
         if not scheduler_list:
             return None
-        
+
         chosen_site = None
         lowest_routing_score = None
         origin_site = getattr(job, "origin_site", None)
         MAX_OCCUPANCY = 0.9
 
         for scheduler in scheduler_list:
-            occupancy = self._occupancy_store.get(id(scheduler))
-            if occupancy is not None and occupancy >= MAX_OCCUPANCY:
+            site_id = id(scheduler)
+            occupancy = self._occupancy_store.get(site_id, 0.0)
+            if occupancy >= MAX_OCCUPANCY:
                 continue
-            self._scheduler_site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', None))
-            ci_occ_score = self._routing_scores.get(id(scheduler))
-            if ci_occ_score is None:
+            scheduler_site_id = getattr(scheduler,"site_id",getattr(scheduler, "_site_id", None))
+            ci = self._ci_store.get(site_id)
+            if ci is None:
                 continue
-            if origin_site is not None and self._scheduler_site_id == origin_site:
-                routing_score = ci_occ_score * self._origin_bias
-            else:
-                routing_score = ci_occ_score
-            #logger.info(f"Routing score for scheduler {self._scheduler_site_id} (origin site: {origin_site}): {routing_score}")
-            if lowest_routing_score is None or routing_score < lowest_routing_score:
+            # Calculate the routing score using the current occupancy.
+            routing_score = ci * (occupancy ** self._k)
+            # Apply origin-site preference
+            if origin_site is not None and scheduler_site_id == origin_site:
+                routing_score *= self._origin_bias
+            if (lowest_routing_score is None or routing_score < lowest_routing_score):
                 lowest_routing_score = routing_score
                 chosen_site = scheduler
-                # logger.info(f"New chosen site: {self._scheduler_site_id} with routing score: {routing_score}")
+
+        if chosen_site is not None:
+            # Update occupancy
+            site_id = id(chosen_site)
+            total_cores = chosen_site.get_number_of_cores()
+            job_share = (job.cores_req / total_cores if total_cores > 0 else 0.0)
+            self._occupancy_store[site_id] = (self._occupancy_store.get(site_id, 0.0) + job_share)
+
         return chosen_site
-    
     
 class RoutingPolicyFactory:
     def create_routing_policy(policy_name, simulation_time=None, routing_config=None):

@@ -86,6 +86,9 @@ class JobScheduler():
     def free_capacity_fraction(self):
         return 1- self._cluster.cluster_occupancy()
 
+    def get_number_of_cores(self):
+        return self._cluster.get_number_of_cores()
+
     def update(self):
         # Jobs to be submitted while the simulation is ongoing
         # Format for regular jobs is a tuple of a dictionary of [{'VO1':jobs per X seconds, 'VO2':jobs per X seconds, [...]}, X]

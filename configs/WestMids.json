@@ -23,6 +23,6 @@
   "savings_policy": "none",
 
   "temporal_shifting": {
-    "policy": "sustainable_queue"
+    "policy": "submit_immediately"
   }
 }

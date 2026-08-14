@@ -1,10 +1,10 @@
 {
     "Simulation" : {
-        "desired_starttime" : "2025-01-01 16:00",
+        "desired_starttime" : "2025-07-01 16:00",
         "simulation_length" : 604800,
         "timestep" : 600,
         "savings_policy" : "none",
-        "routing" : {"policy" : "origin_site"}
+        "routing" : {"policy" : "origin_capacity_aware_CI", "k":2, "origin_bias":0.9}
     
     },
 
@@ -19,6 +19,6 @@
         "verbosity" : "medium",
         "debug" : false,
         "log_dir" : "logs/runs",
-        "run_label" : "5site_winter_SQ_week"
+        "run_label" : "5site_summer_OCA_week_high"
     }
 }
