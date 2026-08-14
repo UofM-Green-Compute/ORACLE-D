@@ -64,57 +64,6 @@ class SustainableQueue:
     def submit_job(self, job, current_time, release_target=None):
         #Used to prevent jobs being set directly to cluster
         self._waiting_line.append({'time_arrived': current_time, 'job': job, 'release_target': release_target})
-
-    def updatee(self, current_time, current_CI, submit_target=None):
-        self._history.append({'time': current_time, 'ci': current_CI, 'held': len(self._waiting_line)})
-        release_now = []
-        wait_longer = []
-        projected_occupancy = {}
-        potential_submission = []
-
-        for item in self._waiting_line:
-            hours_waiting = (current_time - item['time_arrived']).total_seconds() / 3600.0
-            target = item.get('release_target') or submit_target
-            if hours_waiting >= self._max_wait_hours:
-                item['reason'] = 'Deadline Forced'
-                potential_submission.append((item,True))
-                release_now.append(item)
-                continue
-
-            occupancy = target.cluster_occupancy() if target else 0.0
-            if occupancy and occupancy >= self._max_occupancy:
-                self._held_for_capacity += 1
-                wait_longer.append(item)
-                continue
-
-            elif hours_waiting >= self._mid_wait_hours and current_CI <= self._high_ci:
-                item['reason'] = 'High Carbon (<75th)'
-            elif hours_waiting >= self._short_wait_hours and current_CI <= self._mid_ci:
-                item['reason'] = 'Medium Carbon (<50th)'
-            elif current_CI <= self._low_ci:
-                item['reason'] = 'Low Carbon (<25th)'
-            else:
-                wait_longer.append(item)
-                continue
-            release_now.append(item)
-
-        self._waiting_line = wait_longer
-
-        for item in release_now:
-            hours_waited = (current_time - item['time_arrived']).total_seconds() / 3600.0
-            reason = item['reason']
-            self._release_counts[reason] += 1
-            self._total_wait_hours[reason] += hours_waited
-            if hours_waited > self._max_wait_seen:
-                self._max_wait_seen = hours_waited
-            #logger.info(f"SustainableQueue releasing job {item['job'].name} "
-                        #f"(waited {hours_waited:.1f}h, "
-                        #f"reason: {item['reason']}, CI: {current_CI:.1f})")
-            target = item.get('release_target') or submit_target
-            target.submit_job(item['job'])
-            self._released_jobs += 1
-
-        return [item['job'] for item in release_now]
     
     def update(self, current_time, current_CI, submit_target=None):
         self._history.append({'time': current_time, 'ci': current_CI, 'held': len(self._waiting_line)})
