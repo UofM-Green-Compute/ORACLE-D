@@ -206,14 +206,28 @@ class WorkerNode():
         baseusage = self._powerusage_idle
         maxusage  = self._powerusage_active
         physicalcores = self._number_of_cores
+        threads = self._number_of_threads
         coresactive = self._busy_cores # Actually the number of threads active in a HT system.
-        
+
         # In a HT system, each core runs two threads and the load is usually balances, so to a good approximation, the max energy output is when
         # half the threads are in use, one running on every core. A core roughly will not consume more power by running 2 threads instead of 1.
-        scaling = coresactive/physicalcores 
-        if scaling > 1: scaling = 1
+        ht_overhead_fraction = 0.2
+        halflogical_usage = maxusage/(1+ht_overhead_fraction) # The max usage of a HT system is when half the threads are in use, one running on every core.
 
-        inst_pow_disp = maxusage * scaling   
+        if physicalcores<=0:
+            inst_pow_disp = baseusage
+        elif coresactive <= physicalcores:
+            scaling = coresactive/physicalcores
+            inst_pow_disp = baseusage + (halflogical_usage-baseusage)*scaling 
+        else:
+            extra_capacity = threads - physicalcores
+            if extra_capacity>0:
+                scaling = (coresactive-physicalcores)/extra_capacity
+                if scaling > 1: scaling = 1
+            else:
+                scaling = 1
+            inst_pow_disp =halflogical_usage + (maxusage-halflogical_usage)*scaling
+
         if inst_pow_disp < baseusage: inst_pow_disp = baseusage # Can't expend less power than the idle.
         
         inst_pow_disp_timestep = inst_pow_disp * self._simulation_time.get_timestep() # Scale up from power per second to power per timestep.

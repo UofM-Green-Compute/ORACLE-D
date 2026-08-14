@@ -12,7 +12,7 @@ import sys
 from cluster.WorkerNode import *
 from util import Logging
 from datalogger.DataLogger import DataLogger
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 logger = Logging.get_logger()
@@ -41,19 +41,23 @@ class Cluster():
 
         self._job_submitted_handler = None
         self._energy_and_carbon_consumed_handler = None
-        self._peaktime_energy_and_carbon_consumed_handler = None
+        #self._peaktime_energy_and_carbon_consumed_handler = None
         self._occupancy_handler = None
+        self._site_metrics_handler = None
         
         self._carbondata = C_Intensity_data
         self._energy_saving_try = esgimmick
         self._cditerant = 0  # Create a iterant that marks place in the carbon data list w.r.t simulation time to be incrimented w.r.t the timestep of the simulation.
         self._CIThresholdValue = C_Intensity_Threshold_Value
+        self._max_forecast_saved_day = None
+        self._max_forecast_saved_value = None
         self._in_clkdown = False # Flags to make decisions based on the status of the cluster.
         self._anticipate_clkdown = False
         self._anticipate_clockup = False
-  
+        self.site_id = config.get("site_id", config.get("site_id", None))
         self._mission_accomplished = False # State of completion for the simulation. 
         self._worker_node_inventory = worker_node_inventory
+        self._carbon_stats = None
 
         self._verbosity = config["output"]["verbosity"]
 		
@@ -67,11 +71,12 @@ class Cluster():
             logger.info(f'Created cluster with {self.get_number_of_nodes()} worker nodes and {self.get_number_of_cores()} cores')
 
 
-    def set_datalogger_handlers(self, job_submitted, job_started, job_finished, energy_and_carbon_consumed, peaktime_energy_and_carbon_consumed, occupancy):
+    def set_datalogger_handlers(self, job_submitted, job_started, job_finished, energy_and_carbon_consumed, occupancy, site_metrics=None): #, peaktime_energy_and_carbon_consumed
         self._job_submitted_handler = job_submitted
         self._energy_and_carbon_consumed_handler = energy_and_carbon_consumed
-        self._peaktime_energy_and_carbon_consumed_handler = peaktime_energy_and_carbon_consumed
+        #self._peaktime_energy_and_carbon_consumed_handler = peaktime_energy_and_carbon_consumed
         self._occupancy_handler = occupancy
+        self._site_metrics_handler = site_metrics
 
 
         for worker_node in self._worker_nodes:
@@ -93,17 +98,14 @@ class Cluster():
         self._queued_jobs.append(job)
         self._job_submitted_handler(job)
 
-
     def has_queued_jobs(self):
         return len(self._queued_jobs) > 0
-
 
     def has_running_jobs(self):
         for worker_node in self._worker_nodes:
             if worker_node.busy_cores > 0:
                 return True
         return False
-    
 
     def cluster_occupancy(self):
         occ = 0
@@ -112,9 +114,36 @@ class Cluster():
         for node in self._worker_nodes:
             coresavail += node.number_of_cores
             coresused += node.busy_cores
-        occ = coresused/coresavail
+        occ = coresused/coresavail if coresavail > 0 else 0
         return occ
 
+    def carbon_stats(self):
+        if self._carbon_stats is None:
+            values = [float(row[1]) for row in self._carbondata]
+            self._carbon_stats = (min(values), max(values))
+        return self._carbon_stats
+    
+    def _get_carbon_data_row(self, offset=0):
+        index = self._cditerant + offset
+        if index < 0:
+            index = 0
+        if index >= len(self._carbondata):
+            index = len(self._carbondata) - 1
+        return self._carbondata[index]
+
+    def get_current_carbon_intensity(self):
+        return float(self._get_carbon_data_row()[1])
+
+    def get_weighted_carbon_intensity(self):
+        current =self.get_current_carbon_intensity()
+        minimum, maximum = self.carbon_stats()
+        if maximum == minimum:
+            return 0.0 
+        return (current - minimum) / (maximum - minimum)
+    
+    def queue_length(self):
+        return len(self._queued_jobs)
+    
     def update(self):
         # ---------------------------------
         #    Job Management Steps 
@@ -133,8 +162,6 @@ class Cluster():
             
         ### Queues ###
         remaining_jobs = []
-
-        # Try to start queued jobs
         for pending_job in self._queued_jobs:
             # Try to fill nodes in order
             for worker_node in self._worker_nodes:
@@ -145,8 +172,14 @@ class Cluster():
             # If we failed to allocate job to node
             if pending_job is not None:
                 remaining_jobs.append(pending_job)
-        
         self._queued_jobs = remaining_jobs
+
+                # Compares the simulation time wrt the time in the hh segment and moves a pointer to the correct hh segment carbon usage.
+        while self._cditerant + 1 < len(self._carbondata):
+            next_timestamp = datetime.strptime(self._get_carbon_data_row(1)[0], '%Y-%m-%dT%H:%M:%S')
+            if self._simulation_time.get_current_datetime() <= next_timestamp:
+                break
+            self._cditerant += 1
 
         # ---------------------------------
         #    Termination Check
@@ -159,9 +192,7 @@ class Cluster():
         # ---------------------------------
         #    Energy Saving Try Section
         # ---------------------------------
-        # Compares the simulation time wrt the time in the hh segment and moves a pointer to the correct hh segment carbon usage.
-        if self._simulation_time.get_current_datetime() > datetime.strptime(self._carbondata[self._cditerant+1][0], '%Y-%m-%dT%H:%M:%S'):
-            self._cditerant += 1
+
         # Code to clock down nodes between 5pm and 9pm everyday  
         if 'cd1721' in self._energy_saving_try:             
             if self._simulation_time.get_current_datetime().strftime('%H:%M') in ('17:00','17:01','17:02','17:03','17:04','17:05','17:06','17:07','17:08', '17:09'):
@@ -191,11 +222,12 @@ class Cluster():
                 self._anticipate_clockup = False
                 self._in_clkdown = False
 
-            if self._in_clkdown == False and float(self._carbondata[self._cditerant+1][1]) > self._CIThresholdValue+5:
+            next_row = self._get_carbon_data_row(1)
+            if self._in_clkdown == False and float(next_row[1]) > self._CIThresholdValue+5:
                 print("Usage is expected to be high, next timestep we'll clock down the nodes.")
                 self._anticipate_clkdown = True
 
-            if self._in_clkdown == True and float(self._carbondata[self._cditerant+1][1]) < self._CIThresholdValue-5:
+            if self._in_clkdown == True and float(next_row[1]) < self._CIThresholdValue-5:
                 print("Usage is going down, next timestep we'll clock up the nodes.")
                 self._anticipate_clockup = True                
 
@@ -204,15 +236,16 @@ class Cluster():
         # --------------------------------------------------------
         for worker_node in self._worker_nodes:        
             self._timestep_power_dissipated += worker_node.timestep_power_dissipated() # Outputs the amount of power used by machines in a timestep in kWh. 
-
-        self._timestep_carbon_consumed = float(self._carbondata[self._cditerant][2]) # Read in the carbon intensity of the grid at the timestep you are on.
+        self._timestep_carbon_consumed = float(self._get_carbon_data_row()[2]) # Read in the carbon intensity of the grid at the timestep you are on.
         self._timestep_occupancy = self.cluster_occupancy()
 
         self._energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) # Passing energy consumed and the carbon intensity per timestep
         self._occupancy_handler(self._timestep_occupancy)  # Passing occupancy per timestep
+        if self._site_metrics_handler is not None:
+            self._site_metrics_handler(self._simulation_time.get_current_datetime(), self._timestep_occupancy, self._timestep_carbon_consumed)
 
-        if datetime.strptime('17:00:00', '%H:%M:%S').time() < self._simulation_time.get_current_datetime().time() < datetime.strptime('21:00:00', '%H:%M:%S').time():
-            self._peaktime_energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) 
+        #if datetime.strptime('17:00:00', '%H:%M:%S').time() < self._simulation_time.get_current_datetime().time() < datetime.strptime('21:00:00', '%H:%M:%S').time():
+            #self._peaktime_energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) 
         
         #print(self._timestep_power_dissipated) #For debugging
         self._timestep_power_dissipated = 0 # Reset the accumulator every time-step

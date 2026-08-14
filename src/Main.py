@@ -21,18 +21,26 @@
 # The main repository houses LICENSE and NOTICE files for your infromation 
 # ========================================================================
 
-#NEED TO EDIT MAIN TO ACCOUNT FOR NEW CONFIG STRUCTURE
+import contextlib
+import sys
+
 from simulation.Simulation import Simulation
 from cluster.ClusterLoader import load_cluster_inventory
 from util import Logging
 import json
 import os
 import logging
+import numpy as np
+import random
 
 
 logger = Logging.get_logger()
 
 if __name__ == '__main__':
+    
+    run_seed = random.randint(0, 2**32 - 1)
+    logger.info(f"Run seed: {run_seed}")
+
     project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(project_dir + '/configs/config.json') as f:
         config = json.load(f)
@@ -69,14 +77,36 @@ if __name__ == '__main__':
     cluster_configs = []
     for site in config["sites"]:
         cluster_configs.append({
-            "cluster_id": site["site_id"],
+            "site_id": site["site_id"],
             "cluster": site["cluster"],
             "carbon_intensity": site["carbon_intensity"],
             "jobs": site["jobs"],
             "savings_policy": site.get("savings_policy", config["Simulation"].get("savings_policy", "none")),
+            "temporal_shifting": site.get("temporal_shifting", config["Simulation"].get("temporal_shifting", {"policy": "none"}))
         })
- 
+    baseline_config, baseline_cluster_configs = Simulation.baseline_config(config, cluster_configs, run_dir)
+
+
+    logger.info("Running baseline simulation with no carbon savings policy") 
+    print(f"Running baseline simulation with no carbon savings policy")
+    random.seed(run_seed)
+    np.random.seed(run_seed)
+    with open(os.devnull, 'w') as devnull:
+        with contextlib.redirect_stdout(devnull):
+            baseline_sim = Simulation(baseline_config, baseline_cluster_configs)
+            baseline_sim.start()
+
+    logger.info("Running actual simulation")
+    print(f"Running actual simulation")
+    random.seed(run_seed)
+    np.random.seed(run_seed)
     sim = Simulation(config, cluster_configs)
     sim.start()
+
+    comparison = sim.compare_to_baseline(baseline_sim, run_seed)
+    sim.print_comparison(comparison, run_dir)
+    print(f'Simulation Finished. Check logs directory for output')
+
+    sys.exit(0)
     #sim2 = Simulation('eveningclock') # Clock down the node at 5pm and up at 9pm
     #sim2.start()

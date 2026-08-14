@@ -1,5 +1,5 @@
 {
-  "site_id": "DESY2",
+  "site_id": "DESYScot",
 
   "cluster": {
     "cluster_name": "DEFAULT",
@@ -10,17 +10,19 @@
 
   "carbon_intensity": {
     "folder": "data/carbon_intensity/",
-    "filename": "de_carbon_Intensity_2024_15min.csv",
+    "filename": "south_scotland_intensity.csv",
     "high_CI_threshold": 400
   },
 
   "jobs": {
-    "initial_mix": {
-      "GridPP": 50000
-    },
-    "regular_incoming_mix": {},
-    "incoming_timestep": 3600
+"initial_mix": {"ATLAS": 1750}, 
+    "regular_incoming_mix": {"ATLAS": 80},
+    "incoming_timestep": 600
   },
 
-  "savings_policy": "cd"
+  "savings_policy": "none",
+
+  "temporal_shifting": {
+    "policy": "sustainable_queue"
+  }
 }
