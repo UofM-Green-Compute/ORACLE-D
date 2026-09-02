@@ -10,13 +10,11 @@
 
   "carbon_intensity": {
     "folder": "data/carbon_intensity/",
-    "filename": "southern_england_intensity.csv",
+    "filename": "de_carbon_Intensity_2024_15min.csv",
     "high_CI_threshold": 400
   },
-
-  "jobs": {
-"initial_mix": {"ATLAS": 1750},
-    "regular_incoming_mix": {"ATLAS": 80},
+  "jobs": {"initial_mix": {"GridPP": 50000},
+    "regular_incoming_mix": {},
     "incoming_timestep": 600
   },
 

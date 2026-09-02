@@ -13,9 +13,7 @@
     "filename": "west_midlands_intensity.csv",
     "high_CI_threshold": 400
   },
-
-  "jobs": {
-"initial_mix": {"ATLAS": 1750},
+  "jobs": {"initial_mix": {"ATLAS": 1750},
     "regular_incoming_mix": {"ATLAS": 80},
     "incoming_timestep": 600
   },

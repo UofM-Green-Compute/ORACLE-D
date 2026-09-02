@@ -42,11 +42,11 @@ class GlobalJobQueue:
             if getattr(job, 'force_origin', False):
                 destination = self._site_list.get(job.origin_site)
                 if destination is None:
-                    raise ValueError(f"No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
+                    raise ValueError(f"Force origin No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
             else:
                 destination = self._routing_policy.choose_scheduler(job, self._site_list)
                 if destination is None:
-                    raise ValueError(f"No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
+                    raise ValueError(f"routing policy No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
             origin_site = getattr(job, "origin_site", None)
             destination_site_id = getattr(destination, "site_id", None)
             self._routed_counts[job.origin_site] += 1
@@ -98,9 +98,6 @@ class GlobalJobQueue:
             lines.append(f'      Executed locally      : {local}')
             lines.append(f'      Moved to another site : {moved}')
             lines.append('')
- 
-        # Flag any site that received jobs but isn't a known cluster - this
-        # would indicate a routing/config problem (e.g. a typo'd origin_site).
 
         with open(os.path.join(output_dir, 'routing_summary.txt'), 'w') as outfile:
             for line in lines:

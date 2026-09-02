@@ -209,10 +209,10 @@ class WorkerNode():
         threads = self._number_of_threads
         coresactive = self._busy_cores # Actually the number of threads active in a HT system.
 
-        # In a HT system, each core runs two threads and the load is usually balances, so to a good approximation, the max energy output is when
-        # half the threads are in use, one running on every core. A core roughly will not consume more power by running 2 threads instead of 1.
+        # In a HT system, each core runs two threads and the assumption is that using both thread on a core, uses 20% more energy (the overhead)
+        # than using the physical core alone.
         ht_overhead_fraction = 0.2
-        halflogical_usage = maxusage/(1+ht_overhead_fraction) # The max usage of a HT system is when half the threads are in use, one running on every core.
+        halflogical_usage = maxusage/(1+ht_overhead_fraction)
 
         if physicalcores<=0:
             inst_pow_disp = baseusage

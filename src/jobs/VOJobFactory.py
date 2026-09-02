@@ -92,14 +92,6 @@ class ATLASJobFactory(VOJobFactory):
             durationmins = 5
         return durationmins * 60
 
-    # def __require_cores(self):
-    #     # Determine whether you are running a Single or multi-core job.
-    #     if self._cores_requested == None: 
-    #         core_num_seed = random.randint(0,101)    
-    #         if core_num_seed < 80: self._cores_requested = 8 #80% chance of requring 8 cores.
-    #         else                 : self._cores_requested = 1 #20% chance of requring 1 core. 
-    #     return self._cores_requested
-
     def __require_cores(self):
         if self._cores_requested is not None:
             return self._cores_requested
@@ -141,13 +133,6 @@ class LHCbJobFactory(VOJobFactory):
             durationmins = 5
         return durationmins * 60
 
-    # def __require_cores(self):
-    #     # Determine whether you are running a Single or multi-core job.
-    #     if self._cores_requested == None: 
-    #         core_num_seed = random.randint(0,101)    
-    #         if core_num_seed < 10: self._cores_requested = 8 #10% chance of requring 8 cores.
-    #         else                 : self._cores_requested = 1 #90% chance of requring 1 core. 
-    #     return self._cores_requested
     def __require_cores(self):
         if self._cores_requested is not None:
             return self._cores_requested

@@ -162,15 +162,19 @@ class OriginCapacityAwareCIRouting:
             site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', 'Unknown'))
             current_time = self._simulation_time.get_current_datetime()  # <-- add this
             #logger.info(f"[{current_time}] Scheduler {site_id} has carbon intensity: {self._ci_store[id(scheduler)]},"
-                        #f" occupancy: {self._occupancy_store[id(scheduler)]}, routing score: {self._routing_scores[id(scheduler)]}")
+            #            f" occupancy: {self._occupancy_store[id(scheduler)]}, routing score: {self._routing_scores[id(scheduler)]}")
             
     
     def choose_scheduler(self, job, schedulers):
         if job is None or schedulers is None:
+            logger.error(f"choose_scheduler called with job={job is not None}, schedulers={schedulers is not None}")
+            raise RuntimeError(f"HIT NULL INPUT: job is None={job is None}, schedulers is None={schedulers is None}")
             return None
 
         scheduler_list = (list(schedulers.values()) if isinstance(schedulers, dict) else list(schedulers))
         if not scheduler_list:
+            raise RuntimeError(f"HIT EMPTY SCHEDULER LIST: schedulers={schedulers!r}")
+            logger.error(f"choose_scheduler: scheduler_list is EMPTY. raw schedulers arg: {schedulers!r}")        
             return None
 
         chosen_site = None
@@ -195,6 +199,28 @@ class OriginCapacityAwareCIRouting:
             if (lowest_routing_score is None or routing_score < lowest_routing_score):
                 lowest_routing_score = routing_score
                 chosen_site = scheduler
+
+        if chosen_site is None:
+            origin_scheduler = None
+            if origin_site is not None:
+                for scheduler in scheduler_list:
+                    scheduler_site_id = getattr(scheduler, "site_id", getattr(scheduler, "_site_id", None))
+                    if scheduler_site_id == origin_site:
+                        origin_scheduler = scheduler
+                        break
+
+            if origin_scheduler is not None and self._occupancy_store.get(id(origin_scheduler), 0.0) < 1.0:
+                chosen_site = origin_scheduler
+            else:
+                least_occupied = None
+                least_occupancy = None
+                for scheduler in scheduler_list:
+                    occ = self._occupancy_store.get(id(scheduler), 0.0)
+                    if least_occupancy is None or occ < least_occupancy:
+                        least_occupancy = occ
+                        least_occupied = scheduler
+                chosen_site = least_occupied
+
 
         if chosen_site is not None:
             # Update occupancy

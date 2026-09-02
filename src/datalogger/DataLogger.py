@@ -265,20 +265,6 @@ class DataLogger():
         style_axis(ax)
         add_value_labels(ax, list(bars_base) + list(bars_act))
         add_diff_annotation(ax, 'energy', baseline_energy - actual_energy, 'kWh')
-
-        # ── CPU time per job ────────────────────────────────────────────────────
-        # ax = axes[2]
-        # actual_cpu   = comparison["actual_cpu_time_per_job"]   / 3600
-        # baseline_cpu = comparison["baseline_cpu_time_per_job"] / 3600
-        # bars_base = ax.bar(x - bar_width/2, baseline_cpu, bar_width, label='Baseline', color='#888780')
-        # bars_act  = ax.bar(x + bar_width/2, actual_cpu,   bar_width, label='Actual',   color='#EF9F27')
-        # ax.set_title('CPU time per job')
-        # ax.set_ylabel('hours')
-        # style_axis(ax)
-        # add_value_labels(ax, list(bars_base) + list(bars_act))
-        # diff_cpu = baseline_cpu - actual_cpu  # positive = less CPU time used, i.e. "saved"
-        # add_diff_annotation(ax, 'cpu', diff_cpu, 'h/job')
-
         plt.tight_layout()
         fig.savefig(os.path.join(run_dir, 'carbon_savings_comparison.png'), dpi=150, bbox_inches='tight')
         

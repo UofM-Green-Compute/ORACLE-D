@@ -149,8 +149,6 @@ class Cluster():
         #    Job Management Steps 
         # ---------------------------------        
         ### Running jobs ###
-        
-#        if self._simulation_time.get_current_datetime().strftime('%H:%M') in ('00:00','00:01','00:02','00:03','00:04','00:05','00:06','00:07','00:08','00:09'):
         day = self._simulation_time.get_current_datetime().strftime('%d/%m/%Y')
         if day != self._last_day:
             self._days += 1
@@ -244,10 +242,6 @@ class Cluster():
         if self._site_metrics_handler is not None:
             self._site_metrics_handler(self._simulation_time.get_current_datetime(), self._timestep_occupancy, self._timestep_carbon_consumed)
 
-        #if datetime.strptime('17:00:00', '%H:%M:%S').time() < self._simulation_time.get_current_datetime().time() < datetime.strptime('21:00:00', '%H:%M:%S').time():
-            #self._peaktime_energy_and_carbon_consumed_handler(self._timestep_power_dissipated, self._timestep_carbon_consumed) 
-        
-        #print(self._timestep_power_dissipated) #For debugging
         self._timestep_power_dissipated = 0 # Reset the accumulator every time-step
       
     
