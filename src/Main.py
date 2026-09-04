@@ -25,7 +25,6 @@ import contextlib
 import sys
 
 from simulation.Simulation import Simulation
-from cluster.ClusterLoader import load_cluster_inventory
 from util import Logging
 import json
 import os

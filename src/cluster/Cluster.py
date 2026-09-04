@@ -98,14 +98,17 @@ class Cluster():
         self._queued_jobs.append(job)
         self._job_submitted_handler(job)
 
+
     def has_queued_jobs(self):
         return len(self._queued_jobs) > 0
+
 
     def has_running_jobs(self):
         for worker_node in self._worker_nodes:
             if worker_node.busy_cores > 0:
                 return True
         return False
+
 
     def cluster_occupancy(self):
         occ = 0
@@ -117,11 +120,13 @@ class Cluster():
         occ = coresused/coresavail if coresavail > 0 else 0
         return occ
 
+
     def carbon_stats(self):
         if self._carbon_stats is None:
             values = [float(row[1]) for row in self._carbondata]
             self._carbon_stats = (min(values), max(values))
         return self._carbon_stats
+
     
     def _get_carbon_data_row(self, offset=0):
         index = self._cditerant + offset
@@ -131,18 +136,9 @@ class Cluster():
             index = len(self._carbondata) - 1
         return self._carbondata[index]
 
+
     def get_current_carbon_intensity(self):
         return float(self._get_carbon_data_row()[1])
-
-    def get_weighted_carbon_intensity(self):
-        current =self.get_current_carbon_intensity()
-        minimum, maximum = self.carbon_stats()
-        if maximum == minimum:
-            return 0.0 
-        return (current - minimum) / (maximum - minimum)
-    
-    def queue_length(self):
-        return len(self._queued_jobs)
     
     def update(self):
         # ---------------------------------

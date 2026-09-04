@@ -13,14 +13,18 @@
     "filename": "london_intensity.csv",
     "high_CI_threshold": 300
   },
-  "jobs": {"initial_mix": {"ATLAS": 1750},
-    "regular_incoming_mix": {"ATLAS": 80},
+  "jobs": {"initial_mix": {"ATLAS": 3500},
+    "regular_incoming_mix": {"ATLAS": 155},
+    "incoming_timestep": 600
+  },
+    "incoming_timestep": 600
+  },
     "incoming_timestep": 600
   },
 
   "savings_policy": "none",
 
   "temporal_shifting": {
-    "policy": "submit_immediately
+    "policy": "sustainable_queue
   }
 }

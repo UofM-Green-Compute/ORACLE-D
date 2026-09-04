@@ -7,14 +7,14 @@
 #    files in the main directory 
 # ===========================================================================
 
+from logging import config
+
 from util import Logging
 
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import matplotlib.patches as mpatches
-from datetime import datetime
 
 logger = Logging.get_logger()
 
@@ -59,9 +59,9 @@ class DataLogger():
         # verbosity
         self._verbosity = config["output"]["verbosity"]
         self._run_dir = config["output"].get("run_dir", "logs")
-        self._site_id = config.get("site_id", config.get("output", {}).get("site_id", "site"))
         self._simulation_parameters = {}
 
+        self._site_id = config.get("site_id", config.get("output", {}).get("site_id", "site"))
 
     def set_simulation_parameters(self, simulation_parameters):
         self._simulation_parameters = simulation_parameters
@@ -127,7 +127,6 @@ class DataLogger():
         self._avg_energy_per_job = self._safe_divide(self._total_energy_consumed, self._avg_jobs_completed)
         self._avg_carbon_per_job = self._safe_divide(self._total_carbon_consumed, self._avg_jobs_completed)
         self._avg_occupancy      = self._safe_divide(self._sum_occupancy, (total_simulated_time/timestepinsec))
-        summary = self._create_summary(total_simulated_time, total_real_time)
         summary_lines = self._format_summary_lines(total_simulated_time, total_real_time) #, job_length_stats
 
         self._emit_summary_lines(summary_lines, print_console=print_console)
@@ -209,78 +208,6 @@ class DataLogger():
             f'CPU time per job difference vs baseline: {comparison["cpu_time_per_job_difference"]/3600:.2f} hours',
         ]
         self._emit_summary_lines(comparison_summary, print_console=print_console)
-        self._plot_comparison(comparison, run_dir)
-
-    def _plot_comparison(self, comparison, run_dir):
-        fig, axes = plt.subplots(1, 2, figsize=(18, 5))
-        fig.suptitle('Green scheduling vs baseline comparison', fontsize=13, fontweight='bold')
-        bar_width = 0.06
-        x = np.array([0])
-
-        def style_axis(ax):
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.set_xticks([])
-            ax.legend(fontsize=8, frameon=False)
-
-        def add_value_labels(ax, bars):
-            for bar in bars:
-                height = bar.get_height()
-                ax.annotate(f'{height:.2f}',
-                            xy=(bar.get_x() + bar.get_width() / 2, height),
-                            xytext=(0, 4), textcoords='offset points',
-                            ha='center', va='bottom', fontsize=8, color='#333333')
-
-        def add_diff_annotation(ax, label, value, unit, higher_is_better=False):
-            top = ax.get_ylim()[1]
-            colour = '#1D9E75' if value >= 0 else '#D85A30'
-            word = 'Saved' if value >= 0 else 'Extra'
-            ax.annotate(f'{word}: {abs(value):.3f} {unit}',
-                        xy=(0.5, 1.14), xycoords='axes fraction',
-                        ha='center', va='bottom', fontsize=9, fontweight='bold',
-                        color=colour)
-            # give headroom so the annotation never collides with bar labels
-            ax.set_ylim(0, top * 1.22)
-
-        # ── Carbon ──────────────────────────────────────────────────────────────
-        ax = axes[0]
-        actual_carbon   = comparison["actual_total_carbon_g"] / 1e3
-        baseline_carbon = comparison["baseline_total_carbon_g"] / 1e3
-        bars_base = ax.bar(x - bar_width/2, baseline_carbon, bar_width, label='Baseline', color='#888780')
-        bars_act  = ax.bar(x + bar_width/2, actual_carbon,   bar_width, label='Actual',   color='#1D9E75')
-        ax.set_title('Carbon consumed')
-        ax.set_ylabel('kg CO₂e')
-        style_axis(ax)
-        add_value_labels(ax, list(bars_base) + list(bars_act))
-        add_diff_annotation(ax, 'carbon', baseline_carbon - actual_carbon, 'kg')
-
-        # ── Energy ──────────────────────────────────────────────────────────────
-        ax = axes[1]
-        actual_energy   = comparison["actual_total_energy_consumed"]
-        baseline_energy = comparison["baseline_total_energy_consumed"]
-        bars_base = ax.bar(x - bar_width/2, baseline_energy, bar_width, label='Baseline', color='#888780')
-        bars_act  = ax.bar(x + bar_width/2, actual_energy,   bar_width, label='Actual',   color='#378ADD')
-        ax.set_title('Energy consumed')
-        ax.set_ylabel('kWh')
-        style_axis(ax)
-        add_value_labels(ax, list(bars_base) + list(bars_act))
-        add_diff_annotation(ax, 'energy', baseline_energy - actual_energy, 'kWh')
-        plt.tight_layout()
-        fig.savefig(os.path.join(run_dir, 'carbon_savings_comparison.png'), dpi=150, bbox_inches='tight')
-        
-
-        # ── Jobs completed footer ───────────────────────────────────────────────
-        pct = comparison["percentage_of_baseline_jobs_completed"]
-        colour = '#1D9E75' if pct >= 100 else '#D85A30'
-        fig.text(0.5, 0.01,
-                f'Jobs completed vs baseline: {pct:.1f}%',
-                ha='center', fontsize=9, color=colour)
-
-        plt.tight_layout(rect=[0, 0.04, 1, 1])
-        plot_path = os.path.join(run_dir, 'comparison_plot.png')
-        plt.savefig(plot_path, dpi=150)
-        plt.close(fig)
-        logger.info(f'Comparison plot saved to {plot_path}')
 
     def _format_comparison_lines(self, comparison):
         return [

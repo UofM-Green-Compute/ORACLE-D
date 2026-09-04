@@ -10,17 +10,18 @@
 
   "carbon_intensity": {
     "folder": "data/carbon_intensity/",
-    "filename": "de_carbon_Intensity_2024_15min.csv",
+    "filename": "north_west_england_intensity.csv",
     "high_CI_threshold": 300
   },
-  "jobs": {"initial_mix": {"GridPP": 50000},
-    "regular_incoming_mix": {},
+  "jobs": {"initial_mix": {"ATLAS": 3500},
+    "regular_incoming_mix": {"ATLAS": 155},
     "incoming_timestep": 600
   },
+
 
   "savings_policy": "none",
 
   "temporal_shifting": {
-    "policy": "submit_immediately"
+    "policy": "sustainable_queue"
   }
 }

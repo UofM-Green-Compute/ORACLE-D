@@ -46,7 +46,7 @@ class JobScheduler():
 
         # Seed the cluster with initial jobs
         # Format for initial jobs is a dictionary of {'VO1':jobs, 'VO2':jobs, [...]}
-        if self._initial_job_mix is not None:
+        if self._initial_job_mix != None:
             for VO, amount in self._initial_job_mix.items():
                 for _ in range(amount):
                     if VO == 'ATLAS':
@@ -70,9 +70,6 @@ class JobScheduler():
 
     def get_carbon_intensity(self):
         return self._cluster.get_current_carbon_intensity()
-    
-    def get_weighted_carbon_intensity(self):
-        return self._cluster.get_weighted_carbon_intensity()
 
     def has_running_jobs(self):
         return self._cluster.has_running_jobs()
@@ -82,9 +79,6 @@ class JobScheduler():
 
     def cluster_occupancy(self):
         return self._cluster.cluster_occupancy()
-    
-    def free_capacity_fraction(self):
-        return 1- self._cluster.cluster_occupancy()
 
     def get_number_of_cores(self):
         return self._cluster.get_number_of_cores()

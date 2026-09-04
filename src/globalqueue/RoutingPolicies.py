@@ -19,81 +19,6 @@ class OriginSiteRouting:
                 return cluster
         return None
 
-class ProportionalCIRouting:
-    def __init__(self, max_capacity=0.95, simulation_time=None):
-        self._ci_score_store = {}
-        self._capacity_store = {}
-        self._max_capacity = max_capacity
-        self._simulation_time = simulation_time
-
-    def prepare(self, schedulers):
-        scheduler_list = schedulers.values() if isinstance(schedulers,dict) else schedulers
-        for scheduler in scheduler_list:
-            self._ci_score_store[id(scheduler)] = scheduler.get_weighted_carbon_intensity()
-            self._capacity_store[id(scheduler)] = scheduler.free_capacity_fraction()
-        for scheduler in scheduler_list:
-            site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', 'Unknown'))
-            current_time = self._simulation_time.get_current_datetime()  # <-- add this
-            #logger.info(f"[{current_time}] Scheduler {site_id} has weighted carbon intensity score: {self._ci_score_store[id(scheduler)]},"
-             #           f" free capacity fraction: {self._capacity_store[id(scheduler)]}")
-
-    def choose_scheduler(self, job, schedulers):
-        if job is None or schedulers is None:
-            return None
-        schedulers = schedulers.values() if type(schedulers) is dict else schedulers
-
-        chosen_site = None
-        lowest_ci_score = None
-        for scheduler in schedulers:
-            site_ci_score = self._ci_score_store.get(id(scheduler))
-            if lowest_ci_score is None or site_ci_score < lowest_ci_score:
-                lowest_ci_score = site_ci_score
-                chosen_site = scheduler
-
-        return chosen_site
-
-class CapacityAwareProportionalCIRouting:
-    def __init__(self, k=0.0, simulation_time=None):
-        self._ci_score_store = {}
-        self._capacity_store = {}
-        self._routing_scores = {}
-        self._k = k
-        self._simulation_time = simulation_time 
-
-    def prepare(self, schedulers):
-        scheduler_list = schedulers.values() if isinstance(schedulers,dict) else schedulers
-        for scheduler in scheduler_list:
-            ci_score = scheduler.get_weighted_carbon_intensity()
-            occupancy = scheduler.cluster_occupancy()
-            routing_score = ci_score * (occupancy ** self._k)
-            self._ci_score_store[id(scheduler)] = ci_score
-            self._routing_scores[id(scheduler)] = routing_score
-            self._occupancy_store[id(scheduler)] = occupancy
-
-        for scheduler in scheduler_list:
-            site_id = getattr(scheduler, 'site_id', getattr(scheduler, '_site_id', 'Unknown'))
-            current_time = self._simulation_time.get_current_datetime()  # <-- add this
-            logger.info(f"[{current_time}] Scheduler {site_id} has weighted carbon intensity score: {self._ci_score_store[id(scheduler)]},"
-                        f" occupancy: {occupancy}, routing score: {self._routing_scores[id(scheduler)]}")
-            
-    def choose_scheduler(self, job, schedulers):
-        if job is None or schedulers is None:
-            return None
-        scheduler_list = list(schedulers.values()) if isinstance(schedulers, dict) else list(schedulers)
-        if not scheduler_list:
-            return None
-
-        chosen_site = None
-        lowest_routing_score = None
-
-        for scheduler in scheduler_list:
-            routing_score = self._routing_scores.get(id(scheduler))
-            if routing_score is None:
-                continue
-            if lowest_routing_score is None or routing_score < lowest_routing_score:
-                lowest_routing_score = routing_score
-                chosen_site = scheduler
-        return chosen_site
 
 class CapacityAwareCIRouting:
     def __init__(self, k=0.0, simulation_time=None):
@@ -238,8 +163,6 @@ class RoutingPolicyFactory:
         origin_bias = routing_config.get("origin_bias", 1.0)
         policies = {
             "origin_site": lambda: OriginSiteRouting(),
-            "proportional_CI": lambda: ProportionalCIRouting(simulation_time=simulation_time),
-            "proportional_capacity_aware_CI": lambda: CapacityAwareProportionalCIRouting(k=k, simulation_time=simulation_time),
             "capacity_aware_CI": lambda: CapacityAwareCIRouting(k=k, simulation_time=simulation_time),
             "origin_capacity_aware_CI": lambda: OriginCapacityAwareCIRouting(k=k, simulation_time=simulation_time, origin_bias=origin_bias),
         }

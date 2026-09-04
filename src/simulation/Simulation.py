@@ -56,7 +56,7 @@ class Simulation():
         baseline_config["output"]["verbosity"] = "low"
         baseline_config["Simulation"]["routing"] = {"policy": "origin_site"}
 
-        baseline_cluster_configs = [{**cluster_config, "savings_policy": "none", "temporal_shifting": {"policy": "none"}}
+        baseline_cluster_configs = [{**cluster_config, "savings_policy": "none", "temporal_shifting": {"policy": "submit_immediately"}}
                                      for cluster_config in cluster_configs]
         return baseline_config, baseline_cluster_configs
 
@@ -82,10 +82,10 @@ class Simulation():
         self._global_logger = None
         self._final_sim_seconds = None
                
-        self._cluster_sites = []
+        self._site_list = []
         for index, cluster_config in enumerate(cluster_configs, start=1):
             site = self._build_site(cluster_config, index)
-            self._cluster_sites.append(site)
+            self._site_list.append(site)
 
         routing_policy = RoutingPolicyFactory.create_routing_policy(
             self.routing_policy_name,
@@ -94,13 +94,13 @@ class Simulation():
         )
         self._global_scheduler = GlobalJobQueue(routing_policy)
 
-        for site, cluster_config in zip(self._cluster_sites, cluster_configs):
+        for site, cluster_config in zip(self._site_list, cluster_configs):
             self._attach_job_scheduler(site, cluster_config)
-        self._global_scheduler.set_local_schedulers({site.site_id: site.job_scheduler for site in self._cluster_sites})
+        self._global_scheduler.set_local_schedulers({site.site_id: site.job_scheduler for site in self._site_list})
         self._global_scheduler.update()
 
         if self._verbosity in ["low", "medium", "high"]:
-            for site, cluster_config in zip(self._cluster_sites, cluster_configs):
+            for site, cluster_config in zip(self._site_list, cluster_configs):
                 simulation_parameters = self._get_simulation_parameters(site, cluster_config)
                 site.data_logger.set_simulation_parameters(simulation_parameters)
                 simulation_parameters_text = self._format_simulation_parameters(simulation_parameters)
@@ -108,7 +108,7 @@ class Simulation():
                 self._write_simulation_parameters(site,simulation_parameters_text)
         print(f'Simulation Started. Good Luck')
 
-        for site in self._cluster_sites:
+        for site in self._site_list:
             self._apply_initial_savings_policy(site)
 
 
@@ -269,7 +269,7 @@ class Simulation():
         sim_seconds, real_seconds = self._get_finish_context()
         self._final_sim_seconds = sim_seconds
         logger.info
-        for site in self._cluster_sites:
+        for site in self._site_list:
             site.data_logger.set_jobs_generated(site.job_scheduler._total_jobs_generated)
             site.data_logger.print_summary(True, self._jobdescript, site.finish_sim_seconds, self._simulation_time.get_timestep(), 
                                            real_seconds, print_console = False)
@@ -286,7 +286,7 @@ class Simulation():
                                      summary_dir=self._run_dir, print_console = True)
         self._global_scheduler.write_summary(self._run_dir)
         logger.info(f"Finish reason: {reason}")
-        for site in self._cluster_sites:
+        for site in self._site_list:
             shifter=site.job_scheduler._temporal_shifter
             logger.info(f'Site {site.site_id} temporal shifter: {type(shifter).__name__} has summary:{hasattr(shifter, "write_summary")}')
             if hasattr(shifter, 'write_summary'):
@@ -297,7 +297,7 @@ class Simulation():
                 logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
         elif reason == 'time_limit':
             if self._verbosity in ["medium", "high"]:
-                logger.info(f'You have been running for a week! Time to stop')
+                logger.info(f'You have been running for a set amount of time! Time to stop')
                 logger.info(f'Ending simulation at {self._simulation_time.get_current_datetime()}')
 
 
@@ -305,10 +305,10 @@ class Simulation():
         global_logger = DataLogger(self._config)
         global_logger._site_id = 'all_clusters'
 
-        if not self._cluster_sites:
+        if not self._site_list:
             return global_logger
 
-        dataloggers = [site.data_logger for site in self._cluster_sites]
+        dataloggers = [site.data_logger for site in self._site_list]
         global_logger._jobs_submitted = sum(datalogger._jobs_submitted for datalogger in dataloggers)
         global_logger._jobs_generated = sum(datalogger._jobs_generated for datalogger in dataloggers)
         global_logger._jobs_started = sum(datalogger._jobs_started for datalogger in dataloggers)
@@ -320,21 +320,19 @@ class Simulation():
         global_logger._cumulative_wallclock_time = sum(datalogger._cumulative_wallclock_time for datalogger in dataloggers)
         global_logger._cumulative_wait_time = sum(datalogger._cumulative_wait_time for datalogger in dataloggers)
         global_logger._total_energy_consumed = sum(datalogger._total_energy_consumed for datalogger in dataloggers)
-        #global_logger._peaktime_energy_consumed = sum(datalogger._peaktime_energy_consumed for datalogger in dataloggers)
         global_logger._total_carbon_consumed = sum(datalogger._total_carbon_consumed for datalogger in dataloggers)
-        #global_logger._peaktime_carbon_consumed = sum(datalogger._peaktime_carbon_consumed for datalogger in dataloggers)
         global_logger._sum_occupancy = sum(datalogger._sum_occupancy for datalogger in dataloggers) / len(dataloggers)
         global_logger._site_job_totals = {
             site.site_id: site.job_scheduler._total_jobs_generated
-            for site in self._cluster_sites
+            for site in self._site_list
         }
         global_logger._site_job_started_totals = {
             site.site_id: site.data_logger._jobs_started
-            for site in self._cluster_sites
+            for site in self._site_list
         }
         global_logger._site_job_finished_totals = {
             site.site_id: site.data_logger._jobs_finished
-            for site in self._cluster_sites
+            for site in self._site_list
         }
         return global_logger
 
@@ -344,7 +342,7 @@ class Simulation():
             return True
 
         simtottime  = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime() # Simulated Time
-        for site in self._cluster_sites:
+        for site in self._site_list:
             if site.finished:
                 continue
         # Update the state of the scheduler
@@ -352,7 +350,7 @@ class Simulation():
         # Update the state of the cluster
         self._global_scheduler.update()
 
-        for site in self._cluster_sites:
+        for site in self._site_list:
             if site.finished:
                 continue
             site.cluster.update()
@@ -366,19 +364,19 @@ class Simulation():
 
         # Second end condition: When the configured simulation length has elapsed.
         if simtottime.total_seconds() >= self._simulation_length:
-            for site in self._cluster_sites:
+            for site in self._site_list:
                 if not site.finished:
                     site.finished = True
                     site.finish_reason = 'time_limit'
                     site.finish_sim_seconds = simtottime.total_seconds()
 
-        if all(site.finished for site in self._cluster_sites):
+        if all(site.finished for site in self._site_list):
             self._finalise('all_clusters_finished')
             return True
         return False
 
     def future_jobs_expected(self):
-        return any(site.job_scheduler._regular_incoming_jobs for site in self._cluster_sites)
+        return any(site.job_scheduler._regular_incoming_jobs for site in self._site_list)
 
     def _write_simulation_parameters(self, site, simulation_parameters):
         run_dir = site.data_logger._run_dir
