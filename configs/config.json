@@ -17,6 +17,6 @@
         "verbosity" : "medium",
         "debug" : false,
         "log_dir" : "logs/runs",
-        "run_label" : "3site_winter_SQ_week_veryhigh"
+        "run_label" : "3site_winter_week_med"
     }
 }

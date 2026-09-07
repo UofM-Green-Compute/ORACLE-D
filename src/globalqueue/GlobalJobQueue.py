@@ -42,11 +42,11 @@ class GlobalJobQueue:
             if getattr(job, 'force_origin', False):
                 destination = self._site_list.get(job.origin_site)
                 if destination is None:
-                    raise ValueError(f"Force origin No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
+                    raise ValueError(f"Force origin: No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
             else:
                 destination = self._routing_policy.choose_scheduler(job, self._site_list)
                 if destination is None:
-                    raise ValueError(f"routing policy No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
+                    raise ValueError(f"Routing policy: No cluster returned for job {job.name} with origin_site {getattr(job, 'origin_site', None)}")
             origin_site = getattr(job, "origin_site", None)
             destination_site_id = getattr(destination, "site_id", None)
             self._routed_counts[job.origin_site] += 1
@@ -78,8 +78,6 @@ class GlobalJobQueue:
         os.makedirs(output_dir, exist_ok=True)
         known_sites = list(self._site_list.keys())
         counts = self.get_routing_counts()
-        summary = {"routing_policy": self._routing_policy.__class__.__name__, "total_jobs_routed": self._jobs_routed,
-                    "known_sites": known_sites, "jobs_routed_per_site": counts}
         lines = [
             'Routing Summary',
             '================',

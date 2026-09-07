@@ -16,7 +16,6 @@ class SubmitImmediately:
         if release_target:
             release_target.submit_job(job)
     def update(self, current_time, current_CI, submit_target=None):
-        # No jobs are held in this policy, so nothing to update
         return []
 
 class SustainableQueue:
@@ -70,17 +69,14 @@ class SustainableQueue:
         release_now = []
         wait_longer = []
 
-        # Track projected occupancy per target as we tentatively release jobs this timestep.
         projected_occupancy = {}
 
-        # Sort so Deadline Forced jobs are considered first — they must go through
-        # regardless of capacity, and everything else budgets around them.
         potential_releases = []
         for item in self._waiting_line:
             hours_waiting = (current_time - item['time_arrived']).total_seconds() / 3600.0
             if hours_waiting >= self._max_wait_hours:
                 item['reason'] = 'Deadline Forced'
-                potential_releases.append((item, True))   # True = capacity-exempt
+                potential_releases.append((item, True)) #capactiy exempt 
             elif hours_waiting >= self._mid_wait_hours and current_CI <= self._high_ci:
                 item['reason'] = 'High Carbon (<75th)'
                 potential_releases.append((item, False))
@@ -93,9 +89,7 @@ class SustainableQueue:
             else:
                 wait_longer.append(item)
 
-        # Deadline-forced first, so they always get through; remaining budget
-        # is then shared among carbon-driven releases in wait order.
-        potential_releases.sort(key=lambda pair: not pair[1])
+        potential_releases.sort(key=lambda pair: not pair[1]) #capacity exempt jobs are sorted first
 
         for item, capacity_exempt in potential_releases:
             target = item.get('release_target') or submit_target
@@ -103,15 +97,15 @@ class SustainableQueue:
                 release_now.append(item)
                 continue
 
-            tid = id(target)
-            if tid not in projected_occupancy:
-                projected_occupancy[tid] = target.cluster_occupancy()
+            target_id = id(target)
+            if target_id not in projected_occupancy:
+                projected_occupancy[target_id] = target.cluster_occupancy()
 
             job_share = self._job_occupancy_share(item['job'], target)
 
-            if capacity_exempt or projected_occupancy[tid] + job_share <= self._max_occupancy:
+            if capacity_exempt or projected_occupancy[target_id] + job_share <= self._max_occupancy:
                 release_now.append(item)
-                projected_occupancy[tid] += job_share
+                projected_occupancy[target_id] += job_share
             else:
                 self._held_for_capacity += 1
                 wait_longer.append(item)
@@ -212,16 +206,16 @@ class SustainableQueue:
         fig.suptitle(f'Temporal shifting — {site_id or "unknown"}', fontsize=11)
         fig.autofmt_xdate()
         plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'temporal_shifting.png'), dpi=150)
+        plt.savefig(os.path.join(output_dir, 'temporal_shifting_queue.png'), dpi=150)
         plt.close(fig)
-        logger.info(f'Temporal shifting plot saved to {output_dir}/temporal_shifting.png')
+        logger.info(f'Temporal shifting plot saved to {output_dir}/temporal_shifting_queue.png')
         if total_released > 0:
             fig2, axes = plt.subplots(1, 2, figsize=(12, 5))
             fig2.suptitle(f'Job release breakdown — {site_id or "unknown"}', fontsize=11)
 
             reasons = list(self._release_counts.keys())
             counts  = [self._release_counts[r] for r in reasons]
-            pcts    = [c / total_released * 100 for c in counts]
+            percentages    = [c / total_released * 100 for c in counts]
             avg_waits = [
                 self._total_wait_hours[r] / self._release_counts[r]
                 if self._release_counts[r] > 0 else 0.0
@@ -236,7 +230,7 @@ class SustainableQueue:
             ax.set_ylabel('Number of jobs')
             ax.set_xticks(range(len(reasons)))
             ax.set_xticklabels(reasons, rotation=20, ha='right', fontsize=8)
-            for bar, pct in zip(bars, pcts):
+            for bar, pct in zip(bars, percentages):
                 ax.text(bar.get_x() + bar.get_width() / 2,
                         bar.get_height() + max(counts) * 0.01,
                         f'{pct:.1f}%', ha='center', va='bottom', fontsize=8)
