@@ -60,13 +60,10 @@ class Simulation():
                                      for cluster_config in cluster_configs]
         return baseline_config, baseline_cluster_configs
 
-    def __init__(self, config, cluster_configs, simulation_time=None):
+    def __init__(self, config, cluster_configs):
         self._config = config
         self.desiredStartTime = config["Simulation"]["desired_starttime"] # STEVE '2018-01-01 00:30' : Starts at the simulation at a set time can be set to any time you wish in the format '2024-01-12 15:00'
-        if simulation_time is None:
-            self._simulation_time = SimulationTime(config, self.desiredStartTime) #If you want this to be set to the current time, set desiredStartTime to None
-        else:
-            self._simulation_time = simulation_time
+        self._simulation_time = SimulationTime(config, self.desiredStartTime) #If you want this to be set to the current time, set desiredStartTime to None
         self._simulation_length = config["Simulation"]["simulation_length"] # Desired maximum length of the simulation in seconds. (For one year 365*24*3600)
         self._simulation_time._timestep_seconds = config["Simulation"]["timestep"] # Simulation time step in seconds. #Steve was using 200
         # Finds the half-hour time segment to which the start of the simulation belongs and the one after the end time.
@@ -80,7 +77,7 @@ class Simulation():
         self._jobdescript = config["output"]["run_label"]
         self._finish_reason = None
         self._global_logger = None
-        self._final_sim_seconds = None
+        self._simtottime = None
                
         self._site_list = []
         for index, cluster_config in enumerate(cluster_configs, start=1):
@@ -262,21 +259,17 @@ class Simulation():
         logger.info('Jobs: %s', jobs_summary)
         site.job_scheduler = job_scheduler    
                 
-    def _get_finish_context(self):
-        simtottime = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime()
-        realtottime = datetime.now() - self._simulation_time.get_origin_datetime()
-        return simtottime.total_seconds(), realtottime.total_seconds()
 
     def _finalise(self, reason):
         #initiates all final logging once all sites have finished
         self._finished = True
         self._finish_reason = reason
-        sim_seconds, real_seconds = self._get_finish_context()
-        self._final_sim_seconds = sim_seconds
+        self._simtottime = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime()
+        realtottime = datetime.now() - self._simulation_time.get_origin_datetime()
         for site in self._site_list:
             site.data_logger.set_jobs_generated(site.job_scheduler._total_jobs_generated)
             site.data_logger.print_summary(True, self._jobdescript, site.finish_sim_seconds, self._simulation_time.get_timestep(), 
-                                           real_seconds, print_console = False)
+                                           realtottime.total_seconds(), print_console = False)
 
             logger.info(f"Site {site.site_id} total jobs generated: {site.job_scheduler._total_jobs_generated}")
             dl = site.data_logger
@@ -285,8 +278,8 @@ class Simulation():
                         f"cpu_time: {dl._cumulative_cpu_time}, "
                         f"jobs_finished: {dl._jobs_finished}")
         self._global_logger = self._build_global_datalogger()
-        self._global_logger.print_summary(True, self._jobdescript, sim_seconds,
-                                     self._simulation_time.get_timestep(), real_seconds,
+        self._global_logger.print_summary(True, self._jobdescript, self._simtottime.total_seconds(),
+                                     self._simulation_time.get_timestep(), realtottime.total_seconds(),
                                      summary_dir=self._run_dir, print_console = True)
         self._global_scheduler.write_summary(self._run_dir)
         logger.info(f"Finish reason: {reason}")
@@ -431,7 +424,7 @@ class Simulation():
 
     def compare_to_baseline(self, baseline_simulation, run_seed):
         return self._global_logger.comparison(baseline_simulation._global_logger, run_seed,
-                                                       self._final_sim_seconds, baseline_simulation._final_sim_seconds)
+                                                       self._simtottime.total_seconds(), baseline_simulation._simtottime.total_seconds())
 
     def print_comparison(self, comparison, run_dir, print_console=True):
         self._global_logger.print_comparison(comparison, run_dir, print_console=print_console)
