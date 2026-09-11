@@ -1,28 +1,25 @@
-# The ORACLE-D Framework
+# The Adapted Multi-Site ORACLE-D Framework
 
 ## Description
-The Optimised Resource Analysis and Carbon Legacy Estimator for Data centres (ORACLE-D) Framework is a framework for simulating different types of compute nodes, seeing how they deal with incoming jobs, and how much power consumed/carbon emitted in doing so. The initial idea was to use this to investigate how energy consumption and/or carbon usage can be reduced an average Grid computing site. This software was written in Python3
+This code models a distributed computing grid for the example of a federated Digital Research Infrastructure (DRI) in the UK, namely the Worldwide LHC Computing Grid (WLCG). The project has been built using the Optimised Resource Analysis and Carbon Legacy Estimator for Data centres (ORACLE-D) Framework developed by Dwayne Spiteri, Gordon Stewart and Konrad Kockler. The original is a framework for simulating different types of compute nodes, seeing how they deal with incoming jobs, and how much power consumed/carbon emitted in doing so. The initial idea was to use this to investigate how energy consumption and/or carbon usage can be reduced an average Grid computing site. This has been adapted to assess any hypothetical carbon savings to be gained in a multi-site system by employing spatial shifting and start time-defferal temporal shifting, the latter having been adapted from The Sustainable Queue by Jesica Sabau. This software was written in Python3.
 
 ## Project status
-Version 1.1.0: Betelgeuse has been tagged for release on 17th July 2026.
-Version 1.0.0: Antares has been tagged for release on 31st March 2026.
-Version 0.1.0 has been presented at the 2024 HEPiX Spring Workshop in Paris.   
+This version displayed is the basic infrastructure of a multi-site simulation and is only intended to be used as a toy model.
 
-| Release Name | DOI link |
-| :------------: | :------: |
-| Betelgeuse     |          |
-| Antares        | <a href="https://doi.org/10.5281/zenodo.20720295"><img src="https://zenodo.org/badge/1197685978.svg" alt="v1.0.0"></a>|
+The latest version of the original ORACLE-D Framework can be found here: 
+
+| LATEST | <a href="https://doi.org/10.5281/zenodo.20720295"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.20720295.svg" alt="LATEST"></a> |
 
 ## Current Functionality
-The simulation framework is designed to simulate the amount of energy and carbon used* when a computing site[1] performing work[2] is run in different ways[3]. The simulation is modular so [1],[2] and[3] are easily editable. 
+The simulation framework is designed to simulate the amount of energy and carbon used* when a number of computing sites[1] performing work[2] run run in different ways[3],[4],[5]. The simulation is modular so [1],[2],[3],[4] and [5] are easily editable. The simulation with green scheduling [4][5] enabled is compared against a baseline simulation [6] to quantify any savings seen. The simulation includes the regional carbon intensity data required to roughly model sites in the London, Southern England, West Midlands, Northwest England, and South Scotland NESO regions [7].
 
-\* All the nodes that make up the computing site output the amount of energy they have used every time-step (10 minutes), this is also multiplied by the carbon intensity of the UK grid to estimate the carbon emissions per time-step.
+\* All the nodes that make up the computing site output the amount of energy they have used every time-step (10 minutes), this is also multiplied by the carbon intensity of the assigned grid to estimate the carbon emissions per time-step.
 
 [1] A computing site is made up solely of a specified type(s) and number(s) of compute nodes defined in src/cluster/WorkerNode.py which run work.
 
 [2] The work that the nodes run is made up jobs that are specified in src/jobs/VOJobFactory.py, and are inserted into the simulation either at the beginning of the simulation or at fixed durations throughout the simulation in src/jobs/JobScheduler.py.
 
-[3] The different saving policies that the simulation can be run with are specified via a setting in config.json. This policy changes the frequency the nodes are run at and at what times of day this is done. Current running options are
+[3] The different hardware-based saving policies that the simulation can be run with are specified via a setting in configs/"site".json. This policy changes the frequency the nodes are run at and at what times of day this is done. Current running options are
 
 | Running Flag  | Description |
 | :------------: | :------ |
@@ -33,17 +30,54 @@ The simulation framework is designed to simulate the amount of energy and carbon
 | cdcd1721      |  Runs all the nodes clocked down two frequency steps from the reported maximum frequency only between the hours of 5pm and 9pm   |
 | highforecast  |  Runs all the nodes clocked down one frequency step from the reported maximum frequency only when the forecasted usage is high (> 400gCO2e/kWh)   |
 
+
+[4] The spatial shifting algorithm used to is selected in configs/config.json. These are defined in globalqueue/RoutingPolicies.py and are generated by a factory class to make it easier to add alternative options. The algorithms are implemented in globalqueue/GlobalJobQueue.py.
+
+| Algorithm name | Label for config file | Description |
+| :------------: | :------: | :------ |
+| OriginSiteRouting | "origin_site" | The default shifting algorithm where all jobs are submitted to the cluster immediately. |
+| CapacityAwareCIRouting | "capacity_aware_CI" | Calculates a carbon score = `carbon intensity * occupancy^k` \* and sends to cluster with lowest score. |
+| OriginCapacityAwareCIRouting | "origin_capacity_aware_CI" | The spatial routing algorithm that has been used in basic testing. Uses the same carbon score as the previous algorithm, with an "origin_bias" \* discount applied to the origin site. The job is then sent to the cluster with the lowest score. |
+
+\* k and "origin_bias" are parameters defined in config.json. k defaults to a value of 0 and origin_bias defaults to 1.
+
+[5] Start-time defferal temporal algorithms are specified in configs/"site".json. All the temporal algorithms are stored in src/jobs/TemporalShifting.py and are also generated by a factory class. The shifting algorithms are implemented in srrcjobs/JobScheduler.py.
+
+| Algorithm name | Label for config file | Description |
+| :------------: | :------: | :------ |
+| SubmitImmediately | "submit_immediately" | Default temporal shifting algorithm. All jobs are submitted to the cluster immediately. |
+| SustainableQueue | "sustainable_queue" | The shifting algorithm developed from Jesica Sabau. It defines `low`, `medium`, or `high` carbon intensity percentiles across the course of the simulation to influence the release of jobs to a cluster. |
+
+The release conditions for SustainableQueue are defined by:
+- `low`: Below the 25th percentile of carbon intensity values over the course of the simulation for that site. If the carbon intensity doesn't meet this criteria the job will be held until the next time step and the comparison will be made again.
+- `medium`: Below the 50th percentile of carbon intensity values. A job will be released to a cluster if a job has been waiting for more than 6 hours and meets the carbon intensity criteria.
+- `high`: Below the 75th percentile of carbon intensity values. A job will be released to a cluster if a job has been waiting for more than 12 hours and meets the carbon intensity criteria.
+- `forced deadline`: A job will be released after 24 hours no matter the value of the current carbon intensity at that site.
+
+[6] The baseline simulation is set to run with:
+-  Savings policy: "none"
+-  Spatial routing: "origin_site"
+-  Temporal shifting: "submit_immediately
+-  Verbosity: "low"
+
+[7] The regional data only has actual values so a forecasting accuracy of 100% has been assumed. The other than the carbon intensity data, all sites currently use the same cluster data. The data imported ranges from 17/09/2018 23:00 - 24/07/2026 12:00 in half-hourly granularity although gaps in the data are present.
+
+
 The Simulation has two encoded end conditions
   1) All the jobs sent to the cluster have been completed
   2) The amount of time in seconds specified with self._simulation_length has passed
 
+The energy consumed is calculated assuming a system with hyper-threading enabled where using both threads in a core uses 20% more energy than just using a singular thread. This calculation is conducted in src/cluster/WorkerNode.py.
+
+
 **Outputs**
--  Number of jobs started and finished. 
--  Total and Peak-time (17h-21h) Estimated Energy used in kWh.
--  Total and Peak-time Estimated Carbon (C02e) used in kg.
+Global outputs:
+-  Number of jobs generated, started and finished, both total and per site breakdown
 -  Total and average CPU duration.
 -  Total real-time and simulated-time passed.
--  Average occupancy of the cluster
+-  Average occupancy of all the clusters
+-  Energy consumption
+-  Estimated CO2 emissions
 
 ### Package Dependencies
 ORACLE-D has external package requirements in requirements.txt
@@ -62,12 +96,17 @@ To run this simulation in this folder type the command:
 python3 src/Main.py
 ```
 
-The default running mode is to run 50,000 'GridPP' jobs on the default DESY Grid compute cluster from 2024-01-16 16:00 without any special running conditions at medium verbosity. This could run for a couple of minutes and produce a log output, and the folder logs/runs/[DATE]_RF20PMTest-50000GridPP-Base with the summary of the output. The information of grid carbon intensity is taken from data/de_carbon_Intensity_2024_15min.csv. This can be compared to the folder that exists already in the folder which takes the same job mix started at the same time. If the two summaries match, this test was run successfully.
+The test of functionality is to run 50,000 'GridPP' jobs on the default DESY Grid compute cluster from 2024-01-16 16:00 without any special running conditions at medium verbosity. This could run for a couple of minutes and produce a log output, and the folder logs/runs/[DATE]_RF20PMTest-50000GridPP-Base with the summary of the output. The information of grid carbon intensity is taken from data/de_carbon_Intensity_2024_15min.csv. This can be compared to the folder that exists already in the folder which takes the same job mix started at the same time. If the two summaries match, this test was run successfully.
 
-## Configuration
+## Configurations
+
 The simulation is configured via the config.json file. In there, all relevant parameters are specified. They are split into several sections dealing with the different parts of the code.
 
-### Simulation
+Each site also has a configuration file stored in cofigs folder. Here, the cluster specific information is stored.
+
+### Global config.json
+#### Simulation
+
 The parameters that can be changed for the simulation include:
 
 | Variables to edit  | Description |
@@ -75,27 +114,14 @@ The parameters that can be changed for the simulation include:
 | desiredStartTime          | The time at which the simulation starts. Leaving this black defaults to clock time  |
 | simulation_length   | The maximum duration that the will simulation will run for in seconds | 
 | timestep   | The timestep the simulation does in between each update in seconds | 
-| savings_policy   | The savings policy specified in an earlier section. The options are "None", "cd", "cdcd", "cd1721", "cdcd1721", and "highforecast". | 
+| routing : {"policy": (, "k":, "origin_bias": )} | The desired routing policy with parameters if required. The current options are "origin_site", "capacity_aware_CI" (uses "k"), and "origin_capacity_aware_CI" (uses "k" and "origin_bias") |
 
-### carbon_intensity
-The parameters that define information on the carbon intensity. They include:
+#### sites
 
-| Variables to edit  | Description |
-| :------------: | :------ |
-| folder          | The folder where the carbon intensity data is stored  |
-| filename   | The filename of the carbon intensity data | 
-| high_CI_threshold   | The threshold of what is considered a high carbon intensity in gCO2e/kWh | 
+Is a list of the individual "site".json files that are to be included in the multi-site simulation.
 
-### jobs
-In this part of the config, the type of jobs that the simpulation will run are specified. The relevant parameters are:
+#### output
 
-| Variables to edit  | Description |
-| :------------: | :------ |
-| initial_mix          | The initial mix of jobs submitted to the cluster. The format is a dictionary with the type of jobs as key and the number as value. Currently implemented are the jobtypes "ATLAS", "LHCb" and "GridPP". With any other name, a basic job will be run. |
-| regular_incoming_mix   | A mix of jobs that gets submitted at regular intervals. The format is the same as initial_mix. If left empty, no jobs will be refilled. | 
-| incoming_timestep   | The timestep between job submissions | 
-
-### output
 This part controls how much information is written to the logfile in the `logs/` directory.
 
 | Variables to edit  | Description |
@@ -105,10 +131,57 @@ This part controls how much information is written to the logfile in the `logs/`
 | log_dir | Optional. Directory where per-run log folders are written. Defaults to `logs/runs`. |
 | run_label | Optional. Human-readable label added to the run folder name. If omitted, the label is generated from the number of initial jobs and the savings policy. |
 
-Each simulation run creates a folder named like `YYYY-MM-DD_HH-MM-SS_<run-label>` under `logs/runs/`. The folder contains `simulation.log`, `summary.txt`, `summary.json`, `parameters.txt`, and a copy of the run `config.json`.
-The `summary.json` file contains both the simulation parameters and the final summary metrics for machine-readable comparisons between runs.
+### Local "site".json
+#### site_id
 
-Multi-site runs also produce a global 'summary.txt' and 'summary.json', but each site keeps its own summary inside the site subfolder.
+The site ID assigned to this cluster that is used for identification in logs and outputs.
+
+#### cluster
+
+The parameters for the cluster include:
+
+| Variables to edit  | Description |
+| :------------: | :------ |
+| cluster_name          | The name of the cluster.  |
+| inventory_csv   | The csv file with the inventory file of the cluster. | 
+| frequency_csv   | The csv file with frequency dependence of the cluster. | 
+| strict   | Whether the program should terminate when an incomplete frequency dependence data entry is found or simply log and continue. | 
+
+#### carbon_intensity
+
+The parameters that define information on the carbon intensity. They include:
+
+| Variables to edit  | Description |
+| :------------: | :------ |
+| folder          | The folder where the carbon intensity data is stored. |
+| filename   | The filename of the carbon intensity data. | 
+| high_CI_threshold   | The threshold of what is considered a high carbon intensity in gCO2e/kWh. | 
+
+#### jobs
+
+In this part of the config, the job load that the simulation will run are specified. The relevant parameters are:
+
+| Variables to edit  | Description |
+| :------------: | :------ |
+| initial_mix          | The initial mix of jobs submitted to the cluster. The format is a dictionary with the type of jobs as key and the number as value. Currently implemented are the jobtypes "ATLAS", "LHCb" and "GridPP". With any other name, a basic job will be run. |
+| regular_incoming_mix   | A mix of jobs that gets submitted at regular intervals. The format is the same as initial_mix. If left empty, no jobs will be refilled. | 
+| incoming_timestep   | The timestep between job submissions. | 
+
+#### savings_policy
+
+The savings policy specified in an earlier section. The options are "None", "cd", "cdcd", "cd1721", "cdcd1721", and "highforecast". 
+
+#### temporal_shifting
+
+| Variables to edit  | Description |
+| :------------: | :------ |
+| policy | The temporal shifting policy specified in the earlier section. The current options are "submit_immediately" and "sustainable_queue". |
+
+### Output
+
+Each simulation run creates a folder named like `YYYY-MM-DD_HH-MM-SS_<run-label>` under `logs/runs/`. The folder contains subfolders of `/baseline` and a folder per site as well. The individual site folders can also be found within the baseline folder and will contain `summary.txt`, `parameters.txt`, a copy of the site `cluster_config.json` and a plot of `occupancy_and_carbon_intensity.png`. The baseline folder will also contain a global `summary.txt` and `routing_summary.txt` with details of where the jobs generated at each site are being sent to be executed.
+
+The test simulation will produce the same per site folders, but if "sustainable_queue" is used, three extra files will be generated: `temporal_shifting_summary.txt`, `temporal_shifting_breakdown.png` and `temporal_shifting.png`. In the general run folder will contain a `simulation.log`, a global `summary.txt`, `multi_site_config.json`, a `carbon_savings_summary.txt` where the savings compared to the baseline are written, and a `routing_summary.txt`.
 
 Verbosity behavior:
 - `low`: only high-level lifecycle messages (for example simulation creation) are logged.
@@ -117,16 +190,6 @@ Verbosity behavior:
 
 If `output.verbosity` is not one of `low`, `medium`, or `high`, ORACLE-D logs a warning and defaults to `high`.
 
-### cluster
-
-The parameters for the cluster include:
-
-| Variables to edit  | Description |
-| :------------: | :------ |
-| cluster_name          | The name of the cluster  |
-| inventory_csv   | The csv file with the inventory file of the cluster | 
-| frequency_csv   | The csv file with frequency dependence of the cluster | 
-| strict   | Whether the program should terminate when an incomplete frequency dependence data entry is found or simply log and continue. | 
 
 ## Adding Extra Options
 If you want amend the measurements for each node or add different types of node not yet in the simulation. This needs to be done at the bottom of src/cluster/WorkerNode.py.
@@ -187,6 +250,12 @@ Dwayne Spiteri, Gordon Stewart and Konrad Kockler
 ## Acknowledgements
 The measurements used here to catagorise the different types of server come from running the [HEPScore23 benchmark](https://w3.hepix.org/benchmarking/how_to_run_HS23.html) on compute nodes.  For the server examples used in ORACLE-D these were taken by **Emanuele Simili** at the University of Glasgow in February 2024 and **Jan Hartmann** at DESY in May of 2025.
 
-The carbon intensity data for the UK is taken from the [UK National Grid ESO](https://www.nationalgrideso.com/data-portal/national-carbon-intensity-forecast/national_carbon_intensity_forecast) interpolated to fill in gaps in the data and can be downloaded from [here](https://www.nationalgrideso.com/data-portal/national-carbon-intensity-forecast/national_carbon_intensity_forecast) and for Germany is taken from [Agorameter](https://www.agora-energiewende.de/daten-tools/agorameter) and [Green Grid Compass](https://www.greengrid-compass.eu/).
+The carbon intensity data for the whole of UK is taken from the [UK National Grid ESO](https://www.nationalgrideso.com/data-portal/national-carbon-intensity-forecast/national_carbon_intensity_forecast) interpolated to fill in gaps in the data and can be downloaded from [here](https://www.nationalgrideso.com/data-portal/national-carbon-intensity-forecast/national_carbon_intensity_forecast) and for Germany is taken from [Agorameter](https://www.agora-energiewende.de/daten-tools/agorameter) and [Green Grid Compass](https://www.greengrid-compass.eu/).
 
-This code was partially written for the RF2.0 project that has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No. 101131850 and from the Swiss State Secretariat for Education Research and Innovation (SERI)
+The regional carbon intensity data for the 5 sites added to the simulation was taken from the NESO regional data portal (https://www.neso.energy/data-portal/regional-carbon-intensity-forecast).
+
+The additions to the code were made as part of a summer internship by Emily Newton, supervised by **Caterina Doglioni**, funded within the NetDRIVE (https://gtr.ukri.org/projects?ref=UKRI910) Community Project ”Pathways to Effective Carbon Reductions by Use of Green Scheduling".
+
+The original ORACLE-D code was partially written for the RF2.0 project that has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No. 101131850 and from the Swiss State Secretariat for Education Research and Innovation (SERI). 
+
+The algorithm for Sustainable Queue has been adapted from Jesica Sabau (https://github.com/jesicasabau1212/The-Sustainable-Queue).

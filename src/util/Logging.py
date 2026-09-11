@@ -70,8 +70,7 @@ def normalize_verbosity(raw_verbosity, default="high"):
 def _default_run_label(config):
     initial_jobs = config.get("jobs", {}).get("initial_mix", {})
     total_jobs = sum(initial_jobs.values())
-    policy = config.get("Simulation", {}).get("savings_policy", "unknown-policy")
-    return f'{total_jobs}jobs_{policy}'
+    return f'{total_jobs}jobs'
 
 
 def _slugify(value):

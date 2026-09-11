@@ -146,7 +146,7 @@ class GlobalSimulation():
             if simtottime.total_seconds() >= self._simulation_length:
                 for simulation in self._site_simulations:
                     if not simulation._finished:
-                        simulation._finalize('time_limit')
+                        simulation._finalise('time_limit')
                 self._write_global_summary()
                 print('Global simulation finished. Check logs directory for output')
                 sys.exit(0)

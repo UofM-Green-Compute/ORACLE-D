@@ -204,22 +204,30 @@ class WorkerNode():
         # Outputs the amount of power used by a machine in a timestep in kWh. 
         # Assume that machines always use the idle power amount but power dissipated scales linearly with number of cores used to the maximum. 
         baseusage = self._powerusage_idle
-        maxusage  = self._powerusage_active
+        maxusage  = self._powerusage_active #assumption that the max usage is when both threads are used.
         physicalcores = self._number_of_cores
         coresactive = self._busy_cores # Actually the number of threads active in a HT system.
-        
-        # In a HT system, each core runs two threads and the load is usually balances, so to a good approximation, the max energy output is when
-        # half the threads are in use, one running on every core. A core roughly will not consume more power by running 2 threads instead of 1.
-        scaling = coresactive/physicalcores 
-        if scaling > 1: scaling = 1
 
-        inst_pow_disp = maxusage * scaling   
+        # In a HT system, each core runs two threads and the assumption is that using both thread on a core, uses 20% more energy (the overhead)
+        # than using the physical core alone.
+        ht_overhead_fraction = 0.2
+        halflogical_usage = maxusage/(1+ht_overhead_fraction) # Power draw using only physical cores (no HT overhead).
+
+        scaling = coresactive/physicalcores
+        if scaling>2: scaling = 2 # Can't use more than the maximum number of threads.
+
+        if coresactive>physicalcores:
+            inst_pow_disp = halflogical_usage + (maxusage-halflogical_usage)*(scaling-1)
+        else:
+            inst_pow_disp = baseusage + (halflogical_usage-baseusage)*scaling
+
         if inst_pow_disp < baseusage: inst_pow_disp = baseusage # Can't expend less power than the idle.
         
         inst_pow_disp_timestep = inst_pow_disp * self._simulation_time.get_timestep() # Scale up from power per second to power per timestep.
         inst_pow_disp_timestep = inst_pow_disp_timestep/1000 # Convert from Wh to kWh.
 
         return inst_pow_disp_timestep
+   
     
 
     def change_clock_speed(self, clockspeed):
