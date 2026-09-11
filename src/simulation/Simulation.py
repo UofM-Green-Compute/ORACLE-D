@@ -109,7 +109,14 @@ class Simulation():
         print(f'Simulation Started. Good Luck')
 
         for site in self._site_list:
-            self._apply_initial_savings_policy(site)
+            # Apply one-time policies before the first simulation step.
+            if site.cluster._energy_saving_try == 'cd':
+                for worker_node in site.cluster._worker_nodes:
+                    worker_node.clock_down()
+            if site.cluster._energy_saving_try == 'cdcd':
+                for worker_node in site.cluster._worker_nodes:
+                    worker_node.clock_down()
+                    worker_node.clock_down()
 
 
     def _build_site(self, cluster_config, index):
@@ -261,14 +268,11 @@ class Simulation():
         return simtottime.total_seconds(), realtottime.total_seconds()
 
     def _finalise(self, reason):
-        if self._finished:
-            return
-
+        #initiates all final logging once all sites have finished
         self._finished = True
         self._finish_reason = reason
         sim_seconds, real_seconds = self._get_finish_context()
         self._final_sim_seconds = sim_seconds
-        logger.info
         for site in self._site_list:
             site.data_logger.set_jobs_generated(site.job_scheduler._total_jobs_generated)
             site.data_logger.print_summary(True, self._jobdescript, site.finish_sim_seconds, self._simulation_time.get_timestep(), 
@@ -336,44 +340,6 @@ class Simulation():
         }
         return global_logger
 
-        
-    def step(self):
-        if self._finished:
-            return True
-
-        simtottime  = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime() # Simulated Time
-        for site in self._site_list:
-            if site.finished:
-                continue
-        # Update the state of the scheduler
-            site.job_scheduler.update()
-        # Update the state of the cluster
-        self._global_scheduler.update()
-
-        for site in self._site_list:
-            if site.finished:
-                continue
-            site.cluster.update()
-            # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
-            if site.cluster._mission_accomplished:
-                if (not self._global_scheduler.has_jobs() and not self.future_jobs_expected() and
-                   not site.job_scheduler._temporal_shifter.held_jobs>0):
-                    site.finished = True
-                    site.finish_reason = 'no_jobs'
-                    site.finish_sim_seconds = simtottime.total_seconds()
-
-        # Second end condition: When the configured simulation length has elapsed.
-        if simtottime.total_seconds() >= self._simulation_length:
-            for site in self._site_list:
-                if not site.finished:
-                    site.finished = True
-                    site.finish_reason = 'time_limit'
-                    site.finish_sim_seconds = simtottime.total_seconds()
-
-        if all(site.finished for site in self._site_list):
-            self._finalise('all_clusters_finished')
-            return True
-        return False
 
     def future_jobs_expected(self):
         return any(site.job_scheduler._regular_incoming_jobs for site in self._site_list)
@@ -463,17 +429,6 @@ class Simulation():
             return 'none'
         return ', '.join(f'{vo}: {jobs}' for vo, jobs in job_mix.items())
 
-
-    def _apply_initial_savings_policy(self, site):
-        # Apply one-time policies before the first simulation step.
-        if site.cluster._energy_saving_try == 'cd':
-            for worker_node in site.cluster._worker_nodes:
-                worker_node.clock_down()
-        if site.cluster._energy_saving_try == 'cdcd':
-            for worker_node in site.cluster._worker_nodes:
-                worker_node.clock_down()
-                worker_node.clock_down()
-
     def compare_to_baseline(self, baseline_simulation, run_seed):
         return self._global_logger.comparison(baseline_simulation._global_logger, run_seed,
                                                        self._final_sim_seconds, baseline_simulation._final_sim_seconds)
@@ -484,9 +439,39 @@ class Simulation():
        
     def start(self):
         while True:
-            if self.step():
+            simtottime  = self._simulation_time.get_current_datetime() - self._simulation_time.get_start_datetime() # Simulated Time
+            for site in self._site_list:
+                if site.finished:
+                    continue
+            # Update the state of the scheduler
+                site.job_scheduler.update()
+            # Update the state of the cluster
+            self._global_scheduler.update()
+
+            for site in self._site_list:
+                if site.finished:
+                    continue
+                site.cluster.update()
+                # First end condition: When we have no jobs running and no more jobs to submit. Flag will be activate in the cluster update.
+                if site.cluster._mission_accomplished == True:
+                    if (not self._global_scheduler.has_jobs() and not self.future_jobs_expected() and
+                    not site.job_scheduler._temporal_shifter.held_jobs>0):
+                        site.finished = True
+                        site.finish_reason = 'no_jobs'
+                        site.finish_sim_seconds = simtottime.total_seconds()
+
+            # Second end condition: When the configured simulation length has elapsed.
+            if simtottime.total_seconds() >= self._simulation_length:
+                for site in self._site_list:
+                    if not site.finished:
+                        site.finished = True
+                        site.finish_reason = 'time_limit'
+                        site.finish_sim_seconds = simtottime.total_seconds()
+
+            if all(site.finished for site in self._site_list):
+                self._finalise('all_clusters_finished')
                 print(f'Simulation Finished. Check logs directory for output')
                 return
-            # Move forward in time
-            self._simulation_time.advance() 
+            
+            self._simulation_time.advance()             
             
