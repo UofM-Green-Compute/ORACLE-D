@@ -204,29 +204,22 @@ class WorkerNode():
         # Outputs the amount of power used by a machine in a timestep in kWh. 
         # Assume that machines always use the idle power amount but power dissipated scales linearly with number of cores used to the maximum. 
         baseusage = self._powerusage_idle
-        maxusage  = self._powerusage_active
+        maxusage  = self._powerusage_active #assumption that the max usage is when both threads are used.
         physicalcores = self._number_of_cores
-        threads = self._number_of_threads
         coresactive = self._busy_cores # Actually the number of threads active in a HT system.
 
         # In a HT system, each core runs two threads and the assumption is that using both thread on a core, uses 20% more energy (the overhead)
         # than using the physical core alone.
         ht_overhead_fraction = 0.2
-        halflogical_usage = maxusage/(1+ht_overhead_fraction)
+        halflogical_usage = maxusage/(1+ht_overhead_fraction) # Power draw using only physical cores (no HT overhead).
 
-        if physicalcores<=0:
-            inst_pow_disp = baseusage
-        elif coresactive <= physicalcores:
-            scaling = coresactive/physicalcores
-            inst_pow_disp = baseusage + (halflogical_usage-baseusage)*scaling 
+        scaling = coresactive/physicalcores
+        if scaling>2: scaling = 2 # Can't use more than the maximum number of threads.
+
+        if coresactive>physicalcores:
+            inst_pow_disp = halflogical_usage + (maxusage-halflogical_usage)*(scaling-1)
         else:
-            extra_capacity = threads - physicalcores
-            if extra_capacity>0:
-                scaling = (coresactive-physicalcores)/extra_capacity
-                if scaling > 1: scaling = 1
-            else:
-                scaling = 1
-            inst_pow_disp =halflogical_usage + (maxusage-halflogical_usage)*scaling
+            inst_pow_disp = baseusage + (halflogical_usage-baseusage)*scaling
 
         if inst_pow_disp < baseusage: inst_pow_disp = baseusage # Can't expend less power than the idle.
         
@@ -234,6 +227,7 @@ class WorkerNode():
         inst_pow_disp_timestep = inst_pow_disp_timestep/1000 # Convert from Wh to kWh.
 
         return inst_pow_disp_timestep
+   
     
 
     def change_clock_speed(self, clockspeed):
