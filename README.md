@@ -96,7 +96,7 @@ To run this simulation in this folder type the command:
 python3 src/Main.py
 ```
 
-The test of functionality is to run 50,000 'GridPP' jobs on the default DESY Grid compute cluster from 2024-01-16 16:00 without any special running conditions at medium verbosity. This could run for a couple of minutes and produce a log output, and the folder logs/runs/[DATE]_RF20PMTest-50000GridPP-Base with the summary of the output. The information of grid carbon intensity is taken from data/de_carbon_Intensity_2024_15min.csv. This can be compared to the folder that exists already in the folder which takes the same job mix started at the same time. If the two summaries match, this test was run successfully.
+The test of functionality is to run 50,000 'GridPP' jobs on the default DESY Grid compute cluster from 2024-01-16 16:00 without any special running conditions at medium verbosity. This could run for a couple of minutes and produce a log output, and the folder logs/runs/[DATE]_RF20PMTest-50000GridPP-Base with the summary of the output. The information of grid carbon intensity is taken from data/de_carbon_Intensity_2024_15min.csv. The temporal shifting should be set to "submit_immediately" and the spatial shifting to "origin_site". This can be compared to the folder that exists already in the folder which takes the same job mix started at the same time. If the two summaries match, this test was run successfully.
 
 ## Configurations
 
@@ -254,8 +254,8 @@ The carbon intensity data for the whole of UK is taken from the [UK National Gri
 
 The regional carbon intensity data for the 5 sites added to the simulation was taken from the NESO regional data portal (https://www.neso.energy/data-portal/regional-carbon-intensity-forecast).
 
-The additions to the code were made as part of a summer internship by Emily Newton, supervised by **Caterina Doglioni**, funded within the NetDRIVE (https://gtr.ukri.org/projects?ref=UKRI910) Community Project ”Pathways to Effective Carbon Reductions by Use of Green Scheduling".
+The additions to the code were made as part of a University of Manchester Phyics and Astronomy summer internship by Emily Newton, supervised by **Caterina Doglioni**, funded within the NetDRIVE (https://gtr.ukri.org/projects?ref=UKRI910) Community Project ”Pathways to Effective Carbon Reductions by Use of Green Scheduling".
 
 The original ORACLE-D code was partially written for the RF2.0 project that has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No. 101131850 and from the Swiss State Secretariat for Education Research and Innovation (SERI). 
 
-The algorithm for Sustainable Queue has been adapted from Jesica Sabau (https://github.com/jesicasabau1212/The-Sustainable-Queue).
+The algorithm for "The Sustainable Queue" has been adapted from Jesica Sabau and Kristin Lohwasser, to appear in SciPost Phys. Proc. 19 (2026), https://scipost.org/SciPostPhysProc.202607001.
